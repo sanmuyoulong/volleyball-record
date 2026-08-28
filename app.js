@@ -271,22 +271,27 @@ function openDataManager() {
 }
 
 function renderLanding() {
-  app.replaceChildren(document.querySelector("#landing-template").content.cloneNode(true));
-  app.querySelectorAll(".rule-card").forEach(card => {
+  let landing = app.querySelector(".landing");
+  if (!landing) {
+    app.replaceChildren(document.querySelector("#landing-template").content.cloneNode(true));
+    landing = app.querySelector(".landing");
+  }
+  const ruleCards = [...app.querySelectorAll(".rule-card")];
+  ruleCards.forEach(card => {
     card.classList.toggle("selected", card.dataset.profile === state.competitionProfile);
-    card.addEventListener("click", () => {
+    card.onclick = () => {
       state.selectedRule = "modern";
       state.competitionProfile = card.dataset.profile;
-      renderLanding();
+      ruleCards.forEach(item => item.classList.toggle("selected", item === card));
       saveState();
-    });
+    };
   });
-  app.querySelector("#start-setup").addEventListener("click", () => {
+  app.querySelector("#start-setup").onclick = () => {
     state.screen = "setup";
     state.setupStep = 1;
     render();
-  });
-  app.querySelector("#load-demo").addEventListener("click", loadDemoMatch);
+  };
+  app.querySelector("#load-demo").onclick = loadDemoMatch;
 }
 
 function setupHeading(title, subtitle, step) {
@@ -298,20 +303,23 @@ function setupHeading(title, subtitle, step) {
 }
 
 function renderSetup() {
-  app.replaceChildren(document.querySelector("#setup-template").content.cloneNode(true));
+  let form = app.querySelector("#setup-form");
+  if (!form) {
+    app.replaceChildren(document.querySelector("#setup-template").content.cloneNode(true));
+    form = app.querySelector("#setup-form");
+  }
   const progress = app.querySelectorAll(".setup-progress button");
   progress.forEach(button => {
     const step = Number(button.dataset.step);
     button.classList.toggle("active", step === state.setupStep);
     button.classList.toggle("done", step < state.setupStep);
-    button.addEventListener("click", () => {
+    button.onclick = () => {
       if (step > state.setupStep) return;
       readSetupStep(false);
       state.setupStep = step;
       renderSetup();
-    });
+    };
   });
-  const form = app.querySelector("#setup-form");
   if (state.setupStep === 1) form.innerHTML = matchInfoForm();
   if (state.setupStep === 2) form.innerHTML = teamForm();
   if (state.setupStep === 3) form.innerHTML = officialsForm();
@@ -732,8 +740,11 @@ function eligibleLiberoRegulars(teamIndex, set = currentSet()) {
 }
 
 function renderScore() {
-  app.replaceChildren(document.querySelector("#score-template").content.cloneNode(true));
-  const content = app.querySelector("#score-content");
+  let content = app.querySelector("#score-content");
+  if (!content) {
+    app.replaceChildren(document.querySelector("#score-template").content.cloneNode(true));
+    content = app.querySelector("#score-content");
+  }
   const set = currentSet();
   const profile = currentProfile();
   content.innerHTML = `

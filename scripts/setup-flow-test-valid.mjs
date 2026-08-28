@@ -10,19 +10,30 @@ try {
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto("http://127.0.0.1:4173/", { waitUntil: "networkidle" });
+  await page.locator(".landing").evaluate(element => { element.dataset.stabilityProbe = "landing"; });
+  await page.locator('[data-profile="test2026"]').click();
+  if (await page.locator(".landing").getAttribute("data-stability-probe") !== "landing") throw new Error("Rule selection replaced the landing page root");
   await page.locator('[data-profile="official"]').click();
   await page.locator("#start-setup").click();
+  await page.locator(".setup-layout").evaluate(element => { element.dataset.stabilityProbe = "setup"; });
+  const assertSetupRootStable = async label => {
+    if (await page.locator(".setup-layout").getAttribute("data-stability-probe") !== "setup") throw new Error(`${label} replaced the setup page root`);
+  };
   await page.locator('[name="competition"]').fill("流程测试赛");
   await page.locator('[name="scheduledTime"]').fill("18:30");
   await page.locator('[name="venue"]').fill("测试体育馆");
   await page.locator('[name="matchFormat"]').selectOption("3");
   await page.locator('[data-action="next"]').click();
+  await assertSetupRootStable("Match info step");
   await page.locator('[data-action="demo-roster"]').click();
+  await assertSetupRootStable("Demo roster action");
   await page.locator('[data-action="next"]').click();
+  await assertSetupRootStable("Roster step");
   await page.locator('[name="firstReferee"]').fill("第一裁判");
   await page.locator('[name="secondReferee"]').fill("第二裁判");
   await page.locator('[name="scorer"]').fill("记录员");
   await page.locator('[data-action="next"]').click();
+  await assertSetupRootStable("Officials step");
   const lineups = [["1","2","3","4","5","7"], ["1","2","3","4","6","7"]];
   for (let team = 0; team < 2; team += 1) {
     for (let position = 0; position < 6; position += 1) {

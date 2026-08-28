@@ -19,10 +19,13 @@ try {
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await page.locator("#load-demo").click();
   await page.locator(".scoreboard").waitFor();
+  await page.locator(".score-page").evaluate(element => { element.dataset.stabilityProbe = "score"; });
   const scores = await page.locator(".big-score").allTextContents();
   if (scores.join(":") !== "8:6") throw new Error(`Demo score mismatch: ${scores.join(":")}`);
   await page.locator('[data-score-action="plus"][data-team="0"]').click();
+  if (await page.locator(".score-page").getAttribute("data-stability-probe") !== "score") throw new Error("Score action replaced the score page root");
   await page.locator('[data-score-action="minus"][data-team="0"]').click();
+  if (await page.locator(".score-page").getAttribute("data-stability-probe") !== "score") throw new Error("Undo action replaced the score page root");
   const restoredScores = await page.locator(".big-score").allTextContents();
   if (restoredScores.join(":") !== "8:6") throw new Error(`Undo mismatch: ${restoredScores.join(":")}`);
   await page.locator('[data-score-action="timeout"][data-team="0"]').click();
