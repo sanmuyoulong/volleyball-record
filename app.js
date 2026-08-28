@@ -85,6 +85,7 @@ function normalizeState(saved) {
     restored.match.sanctions = Array.isArray(restored.match.sanctions) ? restored.match.sanctions : [];
     restored.match.improperRequests = restored.match.improperRequests || [0, 0];
     restored.match.delayWarnings = restored.match.delayWarnings || [false, false];
+    restored.match.liberoControl = restored.match.liberoControl || [0, 1].map(() => ({ unavailable: [], redesignations: [] }));
     restored.match.sets = restored.match.sets.map(set => ({
       ...set,
       liberoReplacements: set.liberoReplacements || [[], []],
@@ -559,6 +560,7 @@ function startMatch() {
     sanctions: [],
     improperRequests: [0, 0],
     delayWarnings: [false, false],
+    liberoControl: [0, 1].map(() => ({ unavailable: [], redesignations: [] })),
     auditLog: [],
     sets: [createSet(1, state.firstLineups, state.firstServer)],
     currentSetIndex: 0,
@@ -622,7 +624,20 @@ function currentSet() {
 }
 
 function liberoPlayers(teamIndex) {
-  return state.teams[teamIndex].roster.filter(player => player.number && player.name && player.libero);
+  const control = state.match?.liberoControl?.[teamIndex];
+  const redesignated = new Set((control?.redesignations || []).map(item => item.number));
+  const unavailable = new Set(control?.unavailable || []);
+  return state.teams[teamIndex].roster.filter(player => player.number && player.name && (player.libero || redesignated.has(player.number)) && !unavailable.has(player.number));
+}
+
+function isLiberoNumber(teamIndex, number) {
+  return liberoPlayers(teamIndex).some(player => player.number === String(number));
+}
+
+function allDesignatedLiberoNumbers(teamIndex) {
+  const original = state.teams[teamIndex].roster.filter(player => player.libero).map(player => player.number);
+  const redesignated = (state.match?.liberoControl?.[teamIndex]?.redesignations || []).map(item => item.number);
+  return [...new Set([...original, ...redesignated])];
 }
 
 function liberoStatusText(teamIndex, set = currentSet()) {
@@ -645,8 +660,7 @@ function eligibleLiberoRegulars(teamIndex, set = currentSet()) {
     positionIndex,
     courtPosition: courtPositionForIndex(positionIndex, set.rotationIndex[teamIndex])
   })).filter(item => {
-    const player = state.teams[teamIndex].roster.find(entry => entry.number === item.number);
-    if (player?.libero || !isBackRowCourtIndex(item.positionIndex, set.rotationIndex[teamIndex])) return false;
+    if (isLiberoNumber(teamIndex, item.number) || !isBackRowCourtIndex(item.positionIndex, set.rotationIndex[teamIndex])) return false;
     if (item.courtPosition === 0 && set.servingTeam === teamIndex) return false;
     return true;
   });
@@ -807,7 +821,7 @@ function sheetPersonnelHTML(set) {
         return `<article class="sheet-roster-card">
           <div class="sheet-roster-head"><span>${teamIndex === 0 ? "A" : "B"}</span><strong>${escapeHTML(team.name)}</strong><small><b>主教练</b> ${escapeHTML(team.coach || "—")}</small></div>
           <div class="sheet-lineup-summary">${roman.map((position, index) => `<span><b>${position}</b>${escapeHTML(set.lineups[teamIndex][index])}</span>`).join("")}</div>
-          <div class="sheet-roster-grid">${players.map(player => `<span class="sheet-player"><b>${escapeHTML(player.number)}</b>${escapeHTML(player.name)}${player.number === team.captain ? " <i>C</i>" : ""}${player.libero ? " <i>L</i>" : ""}</span>`).join("")}</div>
+          <div class="sheet-roster-grid">${players.map(player => `<span class="sheet-player"><b>${escapeHTML(player.number)}</b>${escapeHTML(player.name)}${player.number === team.captain ? " <i>C</i>" : ""}${isLiberoNumber(teamIndex, player.number) ? " <i>L</i>" : ""}</span>`).join("")}</div>
         </article>`;
       }).join("")}
     </div>
@@ -1121,9 +1135,11 @@ function openLiberoModal(teamIndex) {
     const regulars = eligibleLiberoRegulars(teamIndex, set);
     modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal"><div class="modal-head"><div><h2>${escapeHTML(team.name)} 自由人进入</h2><p>只能替换当前后排常规球员；发球队的 I 号位球员不能被自由人替换。</p></div><button class="icon-button" id="close-modal" type="button">×</button></div>${gapWarning}<div class="substitution-visual"><div class="field"><label>离场常规球员</label><select id="libero-regular"><option value="">请选择</option>${regulars.map(item => `<option value="${escapeHTML(item.number)}">${escapeHTML(item.number)} · ${escapeHTML(playerName(teamIndex, item.number))}（${roman[item.courtPosition]}）</option>`).join("")}</select></div><div class="substitution-arrow">→</div><div class="field"><label>进入自由人</label><select id="libero-in"><option value="">请选择</option>${liberos.filter(player => !set.onCourt[teamIndex].includes(player.number)).map(player => `<option value="${escapeHTML(player.number)}">${escapeHTML(player.number)} · ${escapeHTML(player.name)}</option>`).join("")}</select></div></div><div id="modal-validation"></div><div class="modal-actions"><button class="ghost-button" id="cancel-modal" type="button">取消</button><button class="primary-button blue" id="confirm-libero" type="button" ${!canReplace || !regulars.length ? "disabled" : ""}>确认自由人进入</button></div></section></div>`;
   }
+  modalRoot.querySelector(".modal-actions").insertAdjacentHTML("beforebegin", '<div class="libero-redesignate-row"><span>自由人受伤、患病、被驱逐或被取消资格？</span><button class="text-button" id="open-libero-redesignation" type="button">登记无法继续 / 重新指定</button></div>');
   const close = () => modalRoot.replaceChildren();
   modalRoot.querySelector("#close-modal").addEventListener("click", close);
   modalRoot.querySelector("#cancel-modal").addEventListener("click", close);
+  modalRoot.querySelector("#open-libero-redesignation").addEventListener("click", () => openLiberoRedesignationModal(teamIndex));
   modalRoot.querySelector("#confirm-libero")?.addEventListener("click", () => {
     const action = modalRoot.querySelector('[name="libero-action"]:checked')?.value || "enter";
     const regular = control.active?.regular || modalRoot.querySelector("#libero-regular")?.value || "";
@@ -1131,6 +1147,74 @@ function openLiberoModal(teamIndex) {
     const result = performLiberoReplacement(teamIndex, action, regular, libero);
     if (!result.ok) modalRoot.querySelector("#modal-validation").innerHTML = `<div class="validation-banner">${escapeHTML(result.message)}</div>`;
   });
+}
+
+function openLiberoRedesignationModal(teamIndex) {
+  const set = currentSet();
+  const team = state.teams[teamIndex];
+  const control = state.match.liberoControl[teamIndex];
+  const available = liberoPlayers(teamIndex);
+  const active = set.liberoState[teamIndex].active;
+  const designatedNumbers = new Set(allDesignatedLiberoNumbers(teamIndex));
+  const candidates = team.roster.filter(player => player.number && player.name && !set.onCourt[teamIndex].includes(player.number) && !designatedNumbers.has(player.number) && player.number !== active?.regular);
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal"><div class="modal-head"><div><h2>${escapeHTML(team.name)} 自由人无法继续 / 重新指定</h2><p>被宣布无法继续的自由人本场不得再次参赛。仍有另一名可用自由人时，不允许重新指定。</p></div><button class="icon-button" id="close-modal" type="button">×</button></div><div class="form-grid"><div class="field full"><label>无法继续比赛的自由人</label><select id="unavailable-libero"><option value="">请选择</option>${available.map(player => `<option value="${escapeHTML(player.number)}">${escapeHTML(player.number)} · ${escapeHTML(player.name)}${active?.libero === player.number ? "（当前在场）" : ""}</option>`).join("")}</select></div><div class="field full"><label>重新指定的新自由人</label><select id="redesignated-libero"><option value="">暂不重新指定</option>${candidates.map(player => `<option value="${escapeHTML(player.number)}">${escapeHTML(player.number)} · ${escapeHTML(player.name)}</option>`).join("")}</select></div><div class="field full"><label>原因</label><input id="libero-unavailable-reason" placeholder="例如：受伤 / 患病 / 被驱逐 / 被取消比赛资格" /></div></div><div class="rule-note"><span>i</span><p>重新指定者必须在当前场外，且不能是场上自由人的对应常规替换球员。进一步的重新指定仍会保留完整记录。</p></div><div id="modal-validation"></div><div class="modal-actions"><button class="ghost-button" id="cancel-modal" type="button">取消</button><button class="primary-button blue" id="confirm-redesignation" type="button">确认登记</button></div></section></div>`;
+  const close = () => modalRoot.replaceChildren();
+  modalRoot.querySelector("#close-modal").addEventListener("click", close);
+  modalRoot.querySelector("#cancel-modal").addEventListener("click", close);
+  modalRoot.querySelector("#confirm-redesignation").addEventListener("click", () => {
+    const result = applyLiberoRedesignation(teamIndex, modalRoot.querySelector("#unavailable-libero").value, modalRoot.querySelector("#redesignated-libero").value, modalRoot.querySelector("#libero-unavailable-reason").value.trim());
+    if (!result.ok) modalRoot.querySelector("#modal-validation").innerHTML = `<div class="validation-banner">${escapeHTML(result.message)}</div>`;
+  });
+}
+
+function applyLiberoRedesignation(teamIndex, unavailableNumber, newLiberoNumber, reason, shouldRender = true) {
+  const set = currentSet();
+  const matchControl = state.match.liberoControl[teamIndex];
+  const setControl = set.liberoState[teamIndex];
+  const available = liberoPlayers(teamIndex);
+  if (!available.some(player => player.number === unavailableNumber)) return { ok: false, message: "请选择当前仍可用的自由人。" };
+  if (!reason) return { ok: false, message: "请填写自由人无法继续比赛的原因。" };
+  const remaining = available.filter(player => player.number !== unavailableNumber);
+  if (remaining.length && newLiberoNumber) return { ok: false, message: "球队仍有另一名可用自由人，目前不能重新指定。" };
+  let newLibero = null;
+  if (newLiberoNumber) {
+    newLibero = state.teams[teamIndex].roster.find(player => player.number === newLiberoNumber);
+    const active = setControl.active;
+    if (!newLibero || set.onCourt[teamIndex].includes(newLiberoNumber) || allDesignatedLiberoNumbers(teamIndex).includes(newLiberoNumber) || newLiberoNumber === active?.regular) return { ok: false, message: "新自由人必须是当前场外、尚未担任自由人且不是对应常规替换球员的队员。" };
+  }
+  const before = matchSnapshot();
+  matchControl.unavailable.push(unavailableNumber);
+  let replacement = remaining[0]?.number || "";
+  if (!remaining.length && newLibero) {
+    const designation = { number: newLibero.number, replaces: unavailableNumber, reason, setNumber: set.number, at: formatClock() };
+    matchControl.redesignations.push(designation);
+    replacement = newLibero.number;
+  }
+  const active = setControl.active;
+  let courtText = "";
+  if (active?.libero === unavailableNumber) {
+    if (replacement) {
+      set.onCourt[teamIndex][active.positionIndex] = replacement;
+      active.libero = replacement;
+      courtText = `，由 ${replacement} 号自由人立即接替`;
+    } else {
+      set.onCourt[teamIndex][active.positionIndex] = active.regular;
+      courtText = `，由 ${active.regular} 号常规球员换回`;
+      setControl.active = null;
+    }
+    setControl.lastReplacementRally = set.rallies.length;
+  }
+  const text = newLibero ? `${unavailableNumber} 号自由人因${reason}无法继续，重新指定 ${newLibero.number} 号为自由人${courtText}` : `${unavailableNumber} 号自由人因${reason}无法继续${courtText}`;
+  const record = { team: state.teams[teamIndex].name, action: "redesignation", regular: active?.regular || "—", libero: replacement || unavailableNumber, positionIndex: active?.positionIndex ?? -1, score: `${set.score[teamIndex]}:${set.score[1 - teamIndex]}`, at: formatClock(), rallyIndex: set.rallies.length, text };
+  set.liberoReplacements[teamIndex].push(record);
+  set.events.push({ time: record.at, text: `${state.teams[teamIndex].name}：${text}。` });
+  recordAuditAction("libero", `${state.teams[teamIndex].name}：${text}`, before, { teamIndex, unavailableNumber, newLiberoNumber, reason });
+  if (shouldRender) {
+    modalRoot.replaceChildren();
+    render();
+    toast("自由人无法继续与重新指定信息已写入比赛记录。 ");
+  }
+  return { ok: true };
 }
 
 function performLiberoReplacement(teamIndex, action, regular, libero, shouldRender = true) {
@@ -1187,8 +1271,8 @@ function performLiberoReplacement(teamIndex, action, regular, libero, shouldRend
 function openSubstitutionModal(teamIndex) {
   const set = currentSet();
   const activeLibero = set.liberoState[teamIndex].active;
-  const onCourt = set.onCourt[teamIndex].filter(number => !state.teams[teamIndex].roster.find(player => player.number === number)?.libero);
-  const bench = rosterNumbers(teamIndex).filter(number => !set.onCourt[teamIndex].includes(number) && number !== activeLibero?.regular && !state.teams[teamIndex].roster.find(player => player.number === number)?.libero);
+  const onCourt = set.onCourt[teamIndex].filter(number => !isLiberoNumber(teamIndex, number));
+  const bench = rosterNumbers(teamIndex).filter(number => !set.onCourt[teamIndex].includes(number) && number !== activeLibero?.regular && !isLiberoNumber(teamIndex, number));
   modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal"><div class="modal-head"><div><h2>${escapeHTML(state.teams[teamIndex].name)} 换人</h2><p>本局已使用 ${set.subCount[teamIndex]} / ${currentProfile().substitutionsPerSet} 次普通换人。</p></div><button class="icon-button" id="close-modal" type="button">×</button></div><div class="substitution-visual"><div class="field"><label>离场号码</label><select id="sub-out"><option value="">请选择场上球员</option>${onCourt.map(number => `<option value="${escapeHTML(number)}">${escapeHTML(number)} · ${escapeHTML(playerName(teamIndex, number))}</option>`).join("")}</select></div><div class="substitution-arrow">→</div><div class="field"><label>上场号码</label><select id="sub-in"><option value="">请选择替补球员</option>${bench.map(number => `<option value="${escapeHTML(number)}">${escapeHTML(number)} · ${escapeHTML(playerName(teamIndex, number))}</option>`).join("")}</select></div></div><div id="modal-validation"></div><div class="modal-actions"><button class="ghost-button" id="cancel-modal" type="button">取消</button><button class="primary-button blue" id="confirm-sub" type="button">确认换人</button></div></section></div>`;
   const close = () => modalRoot.replaceChildren();
   modalRoot.querySelector("#close-modal").addEventListener("click", close);
@@ -1210,8 +1294,7 @@ function performSubstitution(teamIndex, out, incoming, shouldRender = true) {
   if (courtIndex < 0) return { ok: false, message: `${out} 号当前不在场上。` };
   if (!rosterNumbers(teamIndex).includes(incoming)) return { ok: false, message: `${incoming} 号不在本队名单中。` };
   if (set.onCourt[teamIndex].includes(incoming)) return { ok: false, message: `${incoming} 号已经在场上。` };
-  const player = state.teams[teamIndex].roster.find(item => item.number === incoming);
-  if (player?.libero) return { ok: false, message: "自由人替换不计入普通换人，应使用自由人控制流程。" };
+  if (isLiberoNumber(teamIndex, incoming)) return { ok: false, message: "自由人替换不计入普通换人，应使用自由人控制流程。" };
   const before = matchSnapshot();
   const starter = set.lineups[teamIndex].includes(out);
   let original = out;
@@ -1249,8 +1332,7 @@ function openSetEndModal(set) {
 function openLineupModal(nextNumber) {
   const previous = currentSet();
   const suggestedLineups = previous.onCourt.map((lineup, teamIndex) => lineup.map(number => {
-    const player = state.teams[teamIndex].roster.find(item => item.number === number);
-    return player?.libero ? (previous.liberoState[teamIndex].active?.regular || previous.lineups[teamIndex][lineup.indexOf(number)]) : number;
+    return isLiberoNumber(teamIndex, number) ? (previous.liberoState[teamIndex].active?.regular || previous.lineups[teamIndex][lineup.indexOf(number)]) : number;
   }));
   const isDecidingSet = nextNumber === state.match.maxSets;
   const suggestedServer = isDecidingSet ? 0 : 1 - previous.firstServer;
@@ -1263,7 +1345,7 @@ function openLineupModal(nextNumber) {
         modalRoot.querySelector("#modal-validation").innerHTML = `<div class="validation-banner">${escapeHTML(state.teams[teamIndex].name)}：${escapeHTML(result.message)}</div>`;
         return;
       }
-      const liberos = state.teams[teamIndex].roster.filter(player => player.libero).map(player => player.number);
+      const liberos = liberoPlayers(teamIndex).map(player => player.number);
       if (lineups[teamIndex].some(number => liberos.includes(number))) {
         modalRoot.querySelector("#modal-validation").innerHTML = `<div class="validation-banner">${escapeHTML(state.teams[teamIndex].name)}：首发轮次中不能直接登记自由人。</div>`;
         return;

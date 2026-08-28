@@ -37,6 +37,20 @@ try {
   const liberoRecords = await page.evaluate(() => JSON.parse(localStorage.getItem("volley-record-state-v1")).match.sets[0].liberoReplacements[0].length);
   if (liberoRecords !== 2) throw new Error(`Expected 2 Libero records, got ${liberoRecords}`);
 
+  await page.locator('[data-score-action="libero"][data-team="0"]').click();
+  await page.locator("#open-libero-redesignation").click();
+  await page.locator("#unavailable-libero").selectOption("6");
+  await page.locator("#libero-unavailable-reason").fill("受伤");
+  await page.locator("#confirm-redesignation").click();
+  await page.locator('[data-score-action="libero"][data-team="0"]').click();
+  await page.locator("#open-libero-redesignation").click();
+  await page.locator("#unavailable-libero").selectOption("10");
+  await page.locator("#redesignated-libero").selectOption("1");
+  await page.locator("#libero-unavailable-reason").fill("患病");
+  await page.locator("#confirm-redesignation").click();
+  const redesignation = await page.evaluate(() => JSON.parse(localStorage.getItem("volley-record-state-v1")).match.liberoControl[0]);
+  if (redesignation.unavailable.join(":") !== "6:10" || redesignation.redesignations.at(-1)?.number !== "1") throw new Error("Libero re-designation state mismatch");
+
   for (let index = 0; index < 2; index += 1) {
     await page.locator('[data-score-action="sanction"]').click();
     await page.locator("#sanction-team").selectOption("1");

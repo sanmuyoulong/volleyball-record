@@ -438,6 +438,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .choice-stack span, .choice-stack b, .choice-stack small { display: block; }
 .choice-stack b { font-size: 12px; }
 .choice-stack small { margin-top: 4px; color: var(--muted); font-size: 10px; }
+.libero-redesignate-row { margin-top: 15px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-radius: 9px; background: #f7f9fb; color: var(--muted); font-size: 10px; }
 .audit-list { max-height: 360px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
 .audit-entry { display: grid; grid-template-columns: 46px 78px 1fr auto; gap: 9px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--soft-line); }
 .audit-entry:last-child { border-bottom: 0; }
