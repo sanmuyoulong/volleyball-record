@@ -1,0 +1,11 @@
+{
+  "name": "volley-record",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "test": "node --test",
+    "test:pdf": "node scripts/export-pdf-check.mjs output/pdf/volleyball-match-record-sample.pdf"
+  }
+}

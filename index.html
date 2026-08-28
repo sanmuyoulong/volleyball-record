@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="基于 FIVB 记录表流程的专业排球电子记分工具" />
+    <title>Volley Record · 排球电子记录表</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-frame">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Volley Record 首页">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </span>
+          <span>
+            <strong>VOLLEY RECORD</strong>
+            <small>排球电子记录表</small>
+          </span>
+        </a>
+        <div class="topbar-actions">
+          <span class="save-state"><i></i><span id="save-label">本机自动保存</span></span>
+          <button class="ghost-button compact" id="reset-app" type="button">重新开始</button>
+        </div>
+      </header>
+
+      <main id="app" aria-live="polite"></main>
+    </div>
+
+    <div id="modal-root"></div>
+    <div id="toast-root" aria-live="assertive"></div>
+
+    <template id="landing-template">
+      <section class="landing page-enter">
+        <div class="hero-copy">
+          <span class="eyebrow">MATCH OPERATIONS · 01</span>
+          <h1>把每一次得分，<br />变成一份准确的比赛记录。</h1>
+          <p>选择规则版本，完成赛前名单与轮次表。比赛中只需操作加分、暂停和换人，系统会按记录表规则自动完成轮转、发球轮次与赛后汇总。</p>
+        </div>
+
+        <div class="rule-panel">
+          <div class="section-heading">
+            <div>
+              <span class="step-kicker">STEP 1 / 4</span>
+              <h2>选择比赛规则</h2>
+            </div>
+            <span class="required-note">必选</span>
+          </div>
+
+          <div class="rule-options">
+            <button class="rule-card selected" type="button" data-profile="official">
+              <span class="rule-radio"><i></i></span>
+              <span class="rule-card-copy">
+                <span class="card-line"><strong>FIVB 2025–2028 正式规则</strong><em>推荐</em></span>
+                <span class="edition">当前全球通用的正式室内排球规则</span>
+                <span class="rule-facts">
+                  <b>25</b> 分制 · 决胜局 <b>15</b> 分 · 暂停 <b>2</b> 次 · 换人 <b>6</b> 次
+                </span>
+              </span>
+              <span class="arrow">↗</span>
+            </button>
+
+            <button class="rule-card" type="button" data-profile="test2026">
+              <span class="rule-radio"><i></i></span>
+              <span class="rule-card-copy">
+                <span class="card-line"><strong>FIVB 2026 指定赛事试行</strong><em class="neutral">试行</em></span>
+                <span class="edition">VNL、U17 世锦赛和洲际锦标赛等指定赛事</span>
+                <span class="rule-facts">
+                  保持正式计分框架 · 每队每局换人上限调整为 <b>8</b> 次
+                </span>
+              </span>
+              <span class="arrow">↗</span>
+            </button>
+          </div>
+
+          <div class="rule-note" id="rule-note">
+            <span>i</span>
+            <p><strong>规则说明</strong>　2026 年“每局 8 次换人”等调整目前只适用于国际排联指定测试赛事；普通比赛应选择 2025–2028 正式基线。</p>
+          </div>
+
+          <div class="landing-actions">
+            <button class="text-button" id="load-demo" type="button">载入样例比赛</button>
+            <button class="primary-button" id="start-setup" type="button">填写比赛信息 <span>→</span></button>
+          </div>
+        </div>
+      </section>
+    </template>
+
+    <template id="setup-template">
+      <section class="setup-layout page-enter">
+        <aside class="setup-aside">
+          <span class="eyebrow">PRE-MATCH</span>
+          <h1>赛前信息</h1>
+          <p>这些信息将自动进入电子记录表，开始比赛后仍可查看，但首发轮次的修改会按换人处理。</p>
+          <nav class="setup-progress" aria-label="赛前设置步骤">
+            <button data-step="1"><span>01</span><b>比赛信息</b><small>时间、场地与赛制</small></button>
+            <button data-step="2"><span>02</span><b>球队名单</b><small>号码、姓名与教练</small></button>
+            <button data-step="3"><span>03</span><b>裁判组</b><small>裁判员与记录员</small></button>
+            <button data-step="4"><span>04</span><b>第一局轮次</b><small>I–VI 与首次发球</small></button>
+          </nav>
+        </aside>
+        <div class="setup-main">
+          <form id="setup-form"></form>
+        </div>
+      </section>
+    </template>
+
+    <template id="score-template">
+      <section class="score-page page-enter">
+        <div id="score-content"></div>
+      </section>
+    </template>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
