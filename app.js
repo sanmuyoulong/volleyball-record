@@ -12,6 +12,7 @@ import {
   setTarget,
   validateLineup
 } from "./rules.js";
+import { normalizeRosterRows, parseRosterFile } from "./roster-import.js";
 
 const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
@@ -86,6 +87,8 @@ function normalizeState(saved) {
     restored.match.improperRequests = restored.match.improperRequests || [0, 0];
     restored.match.delayWarnings = restored.match.delayWarnings || [false, false];
     restored.match.liberoControl = restored.match.liberoControl || [0, 1].map(() => ({ unavailable: [], redesignations: [] }));
+    restored.match.endingPending = Boolean(restored.match.endingPending);
+    restored.match.endConfirmation = restored.match.endConfirmation || null;
     restored.match.sets = restored.match.sets.map(set => ({
       ...set,
       liberoReplacements: set.liberoReplacements || [[], []],
@@ -341,6 +344,7 @@ function matchInfoForm() {
 function teamForm() {
   return `
     ${setupHeading("球队名单", "号码在同一队内必须唯一；L 表示自由人。", 2)}
+    <div class="roster-import-note"><span>Excel / CSV</span><p>可分别为 A、B 队导入名单。支持第一工作表中的“号码、姓名、自由人、队长、队伍名称、主教练”等列。</p><button class="text-button" type="button" data-action="download-roster-template">下载 CSV 模板</button></div>
     <div class="team-editor-grid">
       ${state.teams.map((team, teamIndex) => teamEditor(team, teamIndex)).join("")}
     </div>
@@ -350,7 +354,7 @@ function teamForm() {
 function teamEditor(team, teamIndex) {
   return `
     <section class="team-editor">
-      <div class="team-editor-head"><span class="team-letter">${teamIndex === 0 ? "A" : "B"}</span><input name="team-name-${teamIndex}" value="${escapeHTML(team.name)}" placeholder="队伍名称" aria-label="${teamIndex === 0 ? "A" : "B"}队名称" /></div>
+      <div class="team-editor-head"><span class="team-letter">${teamIndex === 0 ? "A" : "B"}</span><input name="team-name-${teamIndex}" value="${escapeHTML(team.name)}" placeholder="队伍名称" aria-label="${teamIndex === 0 ? "A" : "B"}队名称" /><button class="ghost-button compact" type="button" data-action="import-roster" data-team="${teamIndex}">导入名单</button></div>
       <div class="roster-head"><span>号码</span><span>队员姓名</span><span>自由人</span></div>
       <div class="roster-list">
         ${team.roster.map((player, playerIndex) => `
@@ -434,6 +438,11 @@ function bindSetupActions() {
     applyDemoRosters();
     renderSetup();
   });
+  app.querySelector('[data-action="download-roster-template"]')?.addEventListener("click", downloadRosterTemplate);
+  app.querySelectorAll('[data-action="import-roster"]').forEach(button => button.addEventListener("click", () => {
+    readSetupStep(false);
+    openRosterImportModal(Number(button.dataset.team));
+  }));
   app.querySelector('[data-action="next"]').addEventListener("click", () => {
     const validation = readSetupStep(true);
     if (!validation.ok) return showValidation(validation.message);
@@ -444,6 +453,60 @@ function bindSetupActions() {
       return;
     }
     startMatch();
+  });
+}
+
+function downloadRosterTemplate() {
+  const csv = "\uFEFF队伍名称,主教练,队长号码,号码,队员姓名,自由人,队长\r\n示例队,教练姓名,8,1,队员姓名,,\r\n示例队,教练姓名,8,8,队长姓名,,是\r\n示例队,教练姓名,8,14,自由人姓名,是,";
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "排球球队名单导入模板.csv";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+function rosterImportPreviewHTML(result) {
+  return `<section class="import-preview"><div class="import-summary"><div><small>有效队员</small><strong>${result.players.length}</strong></div><div><small>自由人</small><strong>${result.players.filter(player => player.libero).length}</strong></div><div><small>队长</small><strong>${escapeHTML(result.captain || "待填写")}</strong></div></div>${result.warnings.length ? `<div class="import-warnings">${result.warnings.map(message => `<p>${escapeHTML(message)}</p>`).join("")}</div>` : ""}<div class="import-table"><b>号码</b><b>队员姓名</b><b>身份</b>${result.players.map(player => `<span>${escapeHTML(player.number)}</span><span>${escapeHTML(player.name)}</span><span>${player.number === result.captain ? "C" : ""}${player.libero ? `${player.number === result.captain ? " · " : ""}L` : ""}</span>`).join("")}</div></section>`;
+}
+
+function openRosterImportModal(teamIndex) {
+  const letter = teamIndex === 0 ? "A" : "B";
+  let imported = null;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal wide"><div class="modal-head"><div><h2>导入 ${letter} 队名单</h2><p>支持 .xlsx 和 .csv；XLSX 读取第一个工作表。文件只在当前浏览器中解析，不会上传。</p></div><button class="icon-button" id="close-roster-import" type="button">×</button></div><label class="file-drop" for="roster-file"><strong>选择 Excel / CSV 文件</strong><span>至少包含“号码”和“姓名”列；旧版 .xls 请先另存为 .xlsx。</span><input id="roster-file" type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" /></label><div id="roster-import-result"><div class="event-empty">选择文件后将在这里预览导入结果。</div></div><div class="modal-actions"><button class="ghost-button" id="cancel-roster-import" type="button">取消</button><button class="primary-button blue" id="confirm-roster-import" type="button" disabled>确认覆盖 ${letter} 队名单</button></div></section></div>`;
+  const close = () => modalRoot.replaceChildren();
+  const confirm = modalRoot.querySelector("#confirm-roster-import");
+  const resultSlot = modalRoot.querySelector("#roster-import-result");
+  modalRoot.querySelector("#close-roster-import").addEventListener("click", close);
+  modalRoot.querySelector("#cancel-roster-import").addEventListener("click", close);
+  modalRoot.querySelector("#roster-file").addEventListener("change", async event => {
+    imported = null;
+    confirm.disabled = true;
+    resultSlot.innerHTML = '<div class="event-empty">正在读取并校验名单…</div>';
+    try {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      imported = normalizeRosterRows(await parseRosterFile(file));
+      resultSlot.innerHTML = rosterImportPreviewHTML(imported);
+      confirm.disabled = false;
+    } catch (error) {
+      resultSlot.innerHTML = `<div class="validation-banner">${escapeHTML(error.message || "名单文件读取失败。")}</div>`;
+    }
+  });
+  confirm.addEventListener("click", () => {
+    if (!imported) return;
+    const team = state.teams[teamIndex];
+    const numbers = imported.players.map(player => player.number);
+    team.name = imported.teamName || team.name;
+    team.coach = imported.coach || team.coach;
+    team.captain = imported.captain || (numbers.includes(team.captain) ? team.captain : "");
+    team.roster = [...imported.players, ...defaultRoster()].slice(0, 14);
+    modalRoot.replaceChildren();
+    renderSetup();
+    saveState();
+    toast(`${letter} 队已导入 ${imported.players.length} 名队员。${team.captain ? "" : " 请补充队长号码。"}`);
   });
 }
 
@@ -565,6 +628,8 @@ function startMatch() {
     sets: [createSet(1, state.firstLineups, state.firstServer)],
     currentSetIndex: 0,
     undoStack: [],
+    endingPending: false,
+    endConfirmation: null,
     ended: false
   };
   state.viewSetIndex = 0;
@@ -678,6 +743,7 @@ function renderScore() {
         <span>${matchFormatLabel()}</span><span>·</span><span>专业记录表</span><span>·</span><span>${escapeHTML(state.meta.matchNo || "未编号")}</span><span>·</span><span>${escapeHTML(state.meta.venue)}</span>
       </div>
       <div class="match-toolbar-actions">
+        ${state.match.endingPending && !state.match.ended ? '<button class="primary-button compact" type="button" data-score-action="confirm-end">确认比赛结束</button>' : ""}
         <button class="ghost-button compact" type="button" data-score-action="print">导出完整比赛 PDF</button>
         <button class="ghost-button compact" type="button" data-score-action="edit-info">查看赛前信息</button>
       </div>
@@ -696,7 +762,7 @@ function scoreboardHTML(set) {
   const liberoBlock = [0, 1].find(teamIndex => liberoNeedsImmediateExit(teamIndex, set));
   const scoreStatus = liberoBlock !== undefined
     ? `请先完成 ${escapeHTML(state.teams[liberoBlock].name)} 的自由人离场`
-    : (set.ended ? "本局已结束" : `${escapeHTML(servicePlayer(set.onCourt[set.servingTeam], set.rotationIndex[set.servingTeam]))} 号发球`);
+    : (state.match.endingPending && !state.match.ended ? "比赛结果待确认" : (set.ended ? "本局已结束" : `${escapeHTML(servicePlayer(set.onCourt[set.servingTeam], set.rotationIndex[set.servingTeam]))} 号发球`));
   return `
     <section class="scoreboard">
       <div class="scoreboard-top">
@@ -738,7 +804,7 @@ function setHistoryHTML(compact = false) {
 function canUndoTeam(teamIndex) {
   const set = currentSet();
   const latest = latestReversibleAction();
-  return !set.ended && latest?.type === "score" && latest.meta?.teamIndex === teamIndex && latest.meta?.source !== "sanction";
+  return (!set.ended || state.match.endingPending) && latest?.type === "score" && latest.meta?.teamIndex === teamIndex && latest.meta?.source !== "sanction";
 }
 
 function operationsHTML(set) {
@@ -919,6 +985,7 @@ function bindScoreActions() {
     if (action === "view-set") { state.viewSetIndex = Number(button.dataset.index); renderScore(); }
     if (action === "print") exportFullMatchPDF();
     if (action === "edit-info") openInfoModal();
+    if (action === "confirm-end") openMatchEndConfirmationModal();
   }));
 }
 
@@ -984,9 +1051,10 @@ function finishSet(set) {
   state.match.setsWon[set.winner] += 1;
   set.events.push({ time: set.endTime, text: `${state.teams[set.winner].name} 以 ${set.score[set.winner]}:${set.score[1 - set.winner]} 赢得本局。` });
   if (isMatchComplete(state.match.setsWon, state.match.setsToWin)) {
-    state.match.ended = true;
-    state.match.endedAt = set.endTime;
-    setTimeout(openMatchEndModal, 60);
+    state.match.endingPending = true;
+    state.match.ended = false;
+    state.match.endedAt = "";
+    setTimeout(openMatchEndConfirmationModal, 60);
   } else {
     setTimeout(() => openSetEndModal(set), 60);
   }
@@ -1368,6 +1436,41 @@ function openMatchEndModal() {
   modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal"><div class="winner-banner"><small>MATCH COMPLETE · ${matchFormatLabel()}</small><h2>${escapeHTML(state.teams[winner].name)}</h2><strong>${state.match.setsWon[0]} : ${state.match.setsWon[1]}</strong></div>${setHistoryHTML(true)}<div class="rule-note"><span>✓</span><p><strong>赛后确认</strong>　请依次由记录员、两队队长、第二裁判员和第一裁判员确认比赛结果。电子签字功能将在正式部署版本接入。</p></div><div class="modal-actions"><button class="ghost-button" id="close-result" type="button">查看记录表</button><button class="primary-button blue" id="print-result" type="button">打印比赛记录</button></div></section></div>`;
   modalRoot.querySelector("#close-result").addEventListener("click", () => modalRoot.replaceChildren());
   modalRoot.querySelector("#print-result").addEventListener("click", () => { modalRoot.replaceChildren(); exportFullMatchPDF(); });
+}
+
+function openMatchEndConfirmationModal() {
+  if (!state.match?.endingPending || state.match.ended) return openMatchEndModal();
+  const winner = state.match.setsWon[0] > state.match.setsWon[1] ? 0 : 1;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal"><div class="winner-banner pending"><small>MATCH RESULT · 待正式确认</small><h2>${escapeHTML(state.teams[winner].name)}</h2><strong>${state.match.setsWon[0]} : ${state.match.setsWon[1]}</strong></div>${setHistoryHTML(true)}<div class="end-confirmation-list"><label><input type="checkbox" data-end-check /><span><b>记录员已核对各局比分与总局分</b><small>${escapeHTML(state.officials.scorer || "记录员未填写姓名")}</small></span></label><label><input type="checkbox" data-end-check /><span><b>双方队长已确认比赛结果</b><small>${escapeHTML(state.teams[0].captain || "A 队队长未填写")} 号 / ${escapeHTML(state.teams[1].captain || "B 队队长未填写")} 号</small></span></label><label><input type="checkbox" data-end-check /><span><b>第二裁判员与第一裁判员已完成确认</b><small>${escapeHTML(state.officials.secondReferee || "第二裁判员未填写")} / ${escapeHTML(state.officials.firstReferee || "第一裁判员未填写")}</small></span></label></div><div class="form-grid end-confirmation-fields"><div class="field"><label>正式结束时间</label><input id="confirmed-end-time" type="time" step="1" value="${escapeHTML(formatClock())}" /></div><div class="field full"><label>赛后备注</label><textarea id="end-confirmation-note" rows="2" placeholder="可选：记录申诉、特殊情况或签字说明"></textarea></div></div><div id="end-confirmation-validation"></div><div class="modal-actions"><button class="ghost-button" id="review-result" type="button">返回检查，可撤回最后一分</button><button class="primary-button blue" id="confirm-match-end" type="button" disabled>正式结束比赛</button></div></section></div>`;
+  const checks = [...modalRoot.querySelectorAll("[data-end-check]")];
+  const confirm = modalRoot.querySelector("#confirm-match-end");
+  const update = () => { confirm.disabled = !checks.every(input => input.checked); };
+  checks.forEach(input => input.addEventListener("change", update));
+  modalRoot.querySelector("#review-result").addEventListener("click", () => modalRoot.replaceChildren());
+  confirm.addEventListener("click", () => {
+    const endTime = modalRoot.querySelector("#confirmed-end-time").value;
+    if (!endTime) {
+      modalRoot.querySelector("#end-confirmation-validation").innerHTML = '<div class="validation-banner">请填写正式结束时间。</div>';
+      return;
+    }
+    state.match.endingPending = false;
+    state.match.ended = true;
+    state.match.endedAt = endTime;
+    state.match.endConfirmation = {
+      confirmedAt: new Date().toISOString(),
+      endTime,
+      scorer: state.officials.scorer,
+      teamCaptains: state.teams.map(team => team.captain),
+      secondReferee: state.officials.secondReferee,
+      firstReferee: state.officials.firstReferee,
+      note: modalRoot.querySelector("#end-confirmation-note").value.trim()
+    };
+    currentSet().events.push({ time: endTime, text: "记录员、双方队长及裁判员已确认比赛结果，比赛正式结束。" });
+    recordAuditAction("match", "比赛结果已完成赛后确认并正式结束", null, { endTime, confirmation: clone(state.match.endConfirmation) });
+    render();
+    openMatchEndModal();
+    toast("比赛结果已确认并封存。 ");
+  });
 }
 
 function openInfoModal() {
