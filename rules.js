@@ -51,6 +51,18 @@ export function servicePlayer(lineup, index) {
   return lineup[index] ?? "—";
 }
 
+export function courtPositionForIndex(courtIndex, rotationIndex) {
+  return (courtIndex - rotationIndex + 6) % 6;
+}
+
+export function isBackRowCourtIndex(courtIndex, rotationIndex) {
+  return [0, 4, 5].includes(courtPositionForIndex(courtIndex, rotationIndex));
+}
+
+export function canMakeLiberoReplacement(lastReplacementRally, completedRallies) {
+  return lastReplacementRally < 0 || completedRallies > lastReplacementRally;
+}
+
 export function formatClock(date = new Date()) {
   return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
 }

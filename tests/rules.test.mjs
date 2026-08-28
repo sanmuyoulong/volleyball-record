@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  canMakeLiberoReplacement,
+  courtPositionForIndex,
+  isBackRowCourtIndex,
   isSetComplete,
   isMatchComplete,
   rotateServiceIndex,
@@ -48,4 +51,17 @@ test("轮次表校验名单、完整性和重复号码", () => {
   assert.equal(validateLineup(["1", "2", "3", "4", "5", "6"], roster).ok, true);
   assert.equal(validateLineup(["1", "2", "3", "4", "5", "5"], roster).ok, false);
   assert.equal(validateLineup(["1", "2", "3", "4", "5", "9"], roster).ok, false);
+});
+
+test("自由人只能替换当前后排位置", () => {
+  assert.equal(courtPositionForIndex(0, 0), 0);
+  assert.equal(courtPositionForIndex(0, 1), 5);
+  assert.equal(isBackRowCourtIndex(0, 1), true);
+  assert.equal(isBackRowCourtIndex(2, 1), false);
+});
+
+test("两次自由人替换之间必须完成一个回合", () => {
+  assert.equal(canMakeLiberoReplacement(-1, 0), true);
+  assert.equal(canMakeLiberoReplacement(4, 4), false);
+  assert.equal(canMakeLiberoReplacement(4, 5), true);
 });

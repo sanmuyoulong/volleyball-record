@@ -1,7 +1,10 @@
 import {
   RULESETS,
   COMPETITION_PROFILES,
+  canMakeLiberoReplacement,
+  courtPositionForIndex,
   formatClock,
+  isBackRowCourtIndex,
   isMatchComplete,
   isSetComplete,
   rotateServiceIndex,
@@ -14,6 +17,7 @@ const app = document.querySelector("#app");
 const modalRoot = document.querySelector("#modal-root");
 const toastRoot = document.querySelector("#toast-root");
 const STORAGE_KEY = "volley-record-state-v1";
+const SNAPSHOT_KEY = "volley-record-recovery-v1";
 const roman = ["I", "II", "III", "IV", "V", "VI"];
 
 function defaultRoster() {
@@ -63,20 +67,32 @@ let state = restoreState();
 function restoreState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (saved?.selectedRule && saved?.meta && Array.isArray(saved.teams)) {
-      const base = initialState();
-      saved.selectedRule = "modern";
-      if (!["official", "test2026"].includes(saved.competitionProfile)) saved.competitionProfile = "official";
-      const restored = { ...base, ...saved, meta: { ...base.meta, ...saved.meta } };
-      restored.meta.matchFormat = ["3", "5"].includes(String(restored.meta.matchFormat)) ? String(restored.meta.matchFormat) : "5";
-      if (restored.match) {
-        restored.match.maxSets = Number(restored.match.maxSets || restored.meta.matchFormat || 5);
-        restored.match.setsToWin = Number(restored.match.setsToWin || Math.floor(restored.match.maxSets / 2) + 1);
-      }
-      return restored;
-    }
+    if (saved?.selectedRule && saved?.meta && Array.isArray(saved.teams)) return normalizeState(saved);
   } catch {}
   return initialState();
+}
+
+function normalizeState(saved) {
+  const base = initialState();
+  const restored = { ...base, ...saved, meta: { ...base.meta, ...saved.meta }, officials: { ...base.officials, ...saved.officials } };
+  restored.selectedRule = "modern";
+  if (!["official", "test2026"].includes(restored.competitionProfile)) restored.competitionProfile = "official";
+  restored.meta.matchFormat = ["3", "5"].includes(String(restored.meta.matchFormat)) ? String(restored.meta.matchFormat) : "5";
+  if (restored.match) {
+    restored.match.maxSets = Number(restored.match.maxSets || restored.meta.matchFormat || 5);
+    restored.match.setsToWin = Number(restored.match.setsToWin || Math.floor(restored.match.maxSets / 2) + 1);
+    restored.match.auditLog = Array.isArray(restored.match.auditLog) ? restored.match.auditLog : [];
+    restored.match.sanctions = Array.isArray(restored.match.sanctions) ? restored.match.sanctions : [];
+    restored.match.improperRequests = restored.match.improperRequests || [0, 0];
+    restored.match.delayWarnings = restored.match.delayWarnings || [false, false];
+    restored.match.sets = restored.match.sets.map(set => ({
+      ...set,
+      liberoReplacements: set.liberoReplacements || [[], []],
+      liberoState: set.liberoState || [0, 1].map(() => ({ active: null, lastReplacementRally: -1 })),
+      sanctions: set.sanctions || []
+    }));
+  }
+  return restored;
 }
 
 function saveState() {
@@ -87,6 +103,81 @@ function saveState() {
 
 function clone(value) {
   return typeof structuredClone === "function" ? structuredClone(value) : JSON.parse(JSON.stringify(value));
+}
+
+function matchSnapshot() {
+  if (!state.match) return null;
+  const snapshot = clone(state.match);
+  delete snapshot.auditLog;
+  delete snapshot.undoStack;
+  return snapshot;
+}
+
+function latestReversibleAction() {
+  return [...(state.match?.auditLog || [])].reverse().find(entry => entry.reversible && !entry.reversed) || null;
+}
+
+function recordAuditAction(type, label, before, meta = {}) {
+  if (!state.match) return null;
+  const set = currentSet();
+  const entry = {
+    id: `${Date.now()}-${state.match.auditLog.length + 1}`,
+    at: formatClock(),
+    timestamp: new Date().toISOString(),
+    type,
+    label,
+    setNumber: set?.number || null,
+    score: set ? `${set.score[0]}:${set.score[1]}` : "—",
+    meta,
+    reversible: Boolean(before),
+    reversed: false,
+    before
+  };
+  state.match.auditLog.push(entry);
+  if (state.match.auditLog.length > 250) state.match.auditLog.splice(0, state.match.auditLog.length - 250);
+  saveRecoverySnapshot(label, type !== "score");
+  return entry;
+}
+
+function reverseLatestAction(reason) {
+  const entry = latestReversibleAction();
+  if (!entry?.before) return { ok: false, message: "没有可撤销的操作。" };
+  const auditLog = state.match.auditLog;
+  state.match = { ...clone(entry.before), auditLog, undoStack: [] };
+  entry.reversed = true;
+  auditLog.push({
+    id: `${Date.now()}-${auditLog.length + 1}`,
+    at: formatClock(),
+    timestamp: new Date().toISOString(),
+    type: "correction",
+    label: `撤销：${entry.label}`,
+    setNumber: currentSet()?.number || null,
+    score: currentSet() ? `${currentSet().score[0]}:${currentSet().score[1]}` : "—",
+    meta: { reason: reason || "记录员纠错", reversedActionId: entry.id },
+    reversible: false,
+    reversed: false,
+    before: null
+  });
+  saveRecoverySnapshot(`纠错：${entry.label}`, true);
+  return { ok: true, entry };
+}
+
+let lastRecoverySnapshotAt = 0;
+
+function recoverySnapshots() {
+  try { return JSON.parse(localStorage.getItem(SNAPSHOT_KEY)) || []; } catch { return []; }
+}
+
+function saveRecoverySnapshot(label, force = false) {
+  if (!state.match) return;
+  const now = Date.now();
+  if (!force && now - lastRecoverySnapshotAt < 15000) return;
+  lastRecoverySnapshotAt = now;
+  try {
+    const snapshots = recoverySnapshots();
+    snapshots.unshift({ id: `${now}`, at: new Date().toISOString(), label, state: clone(state) });
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshots.slice(0, 5)));
+  } catch {}
 }
 
 function escapeHTML(value = "") {
@@ -120,6 +211,60 @@ document.querySelector("#reset-app").addEventListener("click", () => {
   state = initialState();
   render();
 });
+
+document.querySelector("#data-manager").addEventListener("click", openDataManager);
+
+function safeFilename(value) {
+  return String(value || "排球比赛").replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, "-").slice(0, 80);
+}
+
+function exportMatchJSON() {
+  const payload = { schemaVersion: 2, app: "Volley Record", exportedAt: new Date().toISOString(), state: clone(state) };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `${safeFilename(state.meta.competition)}-${safeFilename(state.teams[0].name || "A队")}-vs-${safeFilename(state.teams[1].name || "B队")}.json`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  toast("完整比赛 JSON 已导出。 ");
+}
+
+function openDataManager() {
+  const snapshots = recoverySnapshots();
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal wide"><div class="modal-head"><div><h2>数据管理与恢复</h2><p>JSON 包含比赛信息、名单、全部局记录、判罚和操作日志，可用于迁移或恢复。</p></div><button class="icon-button" id="close-modal" type="button">×</button></div><div class="data-actions"><button class="primary-button blue" id="export-json" type="button">导出完整比赛 JSON</button><button class="ghost-button" id="import-json" type="button">从 JSON 恢复</button><input id="import-json-file" type="file" accept="application/json,.json" hidden /></div><section class="snapshot-panel"><div><h3>自动恢复快照</h3><p>最多保留最近 5 个关键状态；恢复前会先备份当前数据。</p></div><div class="snapshot-list">${snapshots.length ? snapshots.map(item => `<article><div><b>${escapeHTML(item.label)}</b><small>${escapeHTML(new Date(item.at).toLocaleString("zh-CN", { hour12: false }))}</small></div><button class="ghost-button compact" type="button" data-restore-snapshot="${escapeHTML(item.id)}">恢复</button></article>`).join("") : '<div class="event-empty">尚无恢复快照。比赛开始并产生操作后会自动生成。</div>'}</div></section><div id="modal-validation"></div></section></div>`;
+  modalRoot.querySelector("#close-modal").addEventListener("click", () => modalRoot.replaceChildren());
+  modalRoot.querySelector("#export-json").addEventListener("click", exportMatchJSON);
+  const fileInput = modalRoot.querySelector("#import-json-file");
+  modalRoot.querySelector("#import-json").addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", async () => {
+    try {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      const parsed = JSON.parse(await file.text());
+      const imported = parsed.state || parsed;
+      if (!imported?.meta || !Array.isArray(imported.teams) || imported.teams.length !== 2) throw new Error("文件不包含有效的 Volley Record 比赛数据。");
+      if (!confirm("从 JSON 恢复会替换当前页面中的比赛数据，是否继续？")) return;
+      saveRecoverySnapshot("JSON 导入前自动备份", true);
+      state = normalizeState(imported);
+      modalRoot.replaceChildren();
+      render();
+      toast("比赛数据已从 JSON 恢复。 ");
+    } catch (error) {
+      modalRoot.querySelector("#modal-validation").innerHTML = `<div class="validation-banner">${escapeHTML(error.message || "JSON 文件读取失败。")}</div>`;
+    }
+  });
+  modalRoot.querySelectorAll("[data-restore-snapshot]").forEach(button => button.addEventListener("click", () => {
+    const snapshot = snapshots.find(item => item.id === button.dataset.restoreSnapshot);
+    if (!snapshot || !confirm(`恢复“${snapshot.label}”会替换当前页面状态，是否继续？`)) return;
+    saveRecoverySnapshot("快照恢复前自动备份", true);
+    state = normalizeState(snapshot.state);
+    modalRoot.replaceChildren();
+    render();
+    toast(`已恢复快照：${snapshot.label}`);
+  }));
+}
 
 function renderLanding() {
   app.replaceChildren(document.querySelector("#landing-template").content.cloneNode(true));
@@ -387,6 +532,9 @@ function createSet(number, lineups, firstServer) {
     serviceRounds: Array.from({ length: 2 }, () => Array.from({ length: 6 }, () => [])),
     timeouts: [[], []],
     substitutions: [[], []],
+    liberoReplacements: [[], []],
+    liberoState: [0, 1].map(() => ({ active: null, lastReplacementRally: -1 })),
+    sanctions: [],
     subCount: [0, 0],
     subPairs: [{}, {}],
     rallies: [],
@@ -408,6 +556,10 @@ function startMatch() {
     maxSets,
     setsToWin: Math.floor(maxSets / 2) + 1,
     setsWon: [0, 0],
+    sanctions: [],
+    improperRequests: [0, 0],
+    delayWarnings: [false, false],
+    auditLog: [],
     sets: [createSet(1, state.firstLineups, state.firstServer)],
     currentSetIndex: 0,
     undoStack: [],
@@ -415,6 +567,8 @@ function startMatch() {
   };
   state.viewSetIndex = 0;
   state.screen = "score";
+  recordAuditAction("match", "比赛开始并写入第一局轮次", null, { firstServer: state.firstServer });
+  saveRecoverySnapshot("比赛开始", true);
   render();
   toast("比赛已开始，第一局轮次已写入记录表。 ");
 }
@@ -467,6 +621,37 @@ function currentSet() {
   return state.match.sets[state.match.currentSetIndex];
 }
 
+function liberoPlayers(teamIndex) {
+  return state.teams[teamIndex].roster.filter(player => player.number && player.name && player.libero);
+}
+
+function liberoStatusText(teamIndex, set = currentSet()) {
+  const active = set.liberoState[teamIndex].active;
+  if (!liberoPlayers(teamIndex).length) return "未登记";
+  if (!active) return `${set.liberoReplacements[teamIndex].length} 次 · 场外`;
+  return `${active.libero} 号在场${liberoNeedsImmediateExit(teamIndex, set) ? " · 需离场" : ""}`;
+}
+
+function liberoNeedsImmediateExit(teamIndex, set = currentSet()) {
+  const active = set.liberoState[teamIndex]?.active;
+  if (!active) return false;
+  const position = courtPositionForIndex(active.positionIndex, set.rotationIndex[teamIndex]);
+  return [1, 2, 3].includes(position) || (position === 0 && set.servingTeam === teamIndex);
+}
+
+function eligibleLiberoRegulars(teamIndex, set = currentSet()) {
+  return set.onCourt[teamIndex].map((number, positionIndex) => ({
+    number,
+    positionIndex,
+    courtPosition: courtPositionForIndex(positionIndex, set.rotationIndex[teamIndex])
+  })).filter(item => {
+    const player = state.teams[teamIndex].roster.find(entry => entry.number === item.number);
+    if (player?.libero || !isBackRowCourtIndex(item.positionIndex, set.rotationIndex[teamIndex])) return false;
+    if (item.courtPosition === 0 && set.servingTeam === teamIndex) return false;
+    return true;
+  });
+}
+
 function renderScore() {
   app.replaceChildren(document.querySelector("#score-template").content.cloneNode(true));
   const content = app.querySelector("#score-content");
@@ -494,6 +679,10 @@ function renderScore() {
 }
 
 function scoreboardHTML(set) {
+  const liberoBlock = [0, 1].find(teamIndex => liberoNeedsImmediateExit(teamIndex, set));
+  const scoreStatus = liberoBlock !== undefined
+    ? `请先完成 ${escapeHTML(state.teams[liberoBlock].name)} 的自由人离场`
+    : (set.ended ? "本局已结束" : `${escapeHTML(servicePlayer(set.onCourt[set.servingTeam], set.rotationIndex[set.servingTeam]))} 号发球`);
   return `
     <section class="scoreboard">
       <div class="scoreboard-top">
@@ -505,11 +694,11 @@ function scoreboardHTML(set) {
       <div class="score-controls">
         <div class="team-controls">
           <button class="score-button" type="button" data-score-action="minus" data-team="0" ${canUndoTeam(0) ? "" : "disabled"}>− 1</button>
-          <button class="score-button plus" type="button" data-score-action="plus" data-team="0" ${set.ended ? "disabled" : ""}>+ 1</button>
+          <button class="score-button plus" type="button" data-score-action="plus" data-team="0" ${set.ended || liberoBlock !== undefined ? "disabled" : ""}>+ 1</button>
         </div>
-        <div class="score-status">${set.ended ? "本局已结束" : `${escapeHTML(servicePlayer(set.onCourt[set.servingTeam], set.rotationIndex[set.servingTeam]))} 号发球`}</div>
+        <div class="score-status ${liberoBlock !== undefined ? "attention" : ""}">${scoreStatus}</div>
         <div class="team-controls">
-          <button class="score-button plus" type="button" data-score-action="plus" data-team="1" ${set.ended ? "disabled" : ""}>+ 1</button>
+          <button class="score-button plus" type="button" data-score-action="plus" data-team="1" ${set.ended || liberoBlock !== undefined ? "disabled" : ""}>+ 1</button>
           <button class="score-button" type="button" data-score-action="minus" data-team="1" ${canUndoTeam(1) ? "" : "disabled"}>− 1</button>
         </div>
       </div>
@@ -534,7 +723,8 @@ function setHistoryHTML(compact = false) {
 
 function canUndoTeam(teamIndex) {
   const set = currentSet();
-  return !set.ended && set.rallies.at(-1)?.winner === teamIndex && state.match.undoStack.length > 0;
+  const latest = latestReversibleAction();
+  return !set.ended && latest?.type === "score" && latest.meta?.teamIndex === teamIndex && latest.meta?.source !== "sanction";
 }
 
 function operationsHTML(set) {
@@ -551,6 +741,20 @@ function operationsHTML(set) {
       <div class="operation-row">
         ${[0,1].map(team => `<button class="action-button" type="button" data-score-action="substitution" data-team="${team}" ${set.ended || set.subCount[team] >= maxSubs ? "disabled" : ""}>${escapeHTML(state.teams[team].name)}<strong>${set.subCount[team]} / ${maxSubs}</strong></button>`).join("")}
       </div>
+    </section>
+    <section class="operation-card">
+      <h3>自由人替换</h3><p>不计普通换人；自动校验后排位置和已完成回合。</p>
+      <div class="operation-row">
+        ${[0,1].map(team => `<button class="action-button ${liberoNeedsImmediateExit(team, set) ? "needs-action" : ""}" type="button" data-score-action="libero" data-team="${team}" ${set.ended ? "disabled" : ""}>${escapeHTML(state.teams[team].name)}<strong>${escapeHTML(liberoStatusText(team, set))}</strong></button>`).join("")}
+      </div>
+    </section>
+    <section class="operation-card sanction-card">
+      <h3>判罚与延误</h3><p>记录不当请求、延误及行为判罚；罚分会自动计入对方比分。</p>
+      <button class="action-button wide" type="button" data-score-action="sanction" ${set.ended ? "disabled" : ""}>登记判罚<strong>${state.match.sanctions.length} 条</strong></button>
+    </section>
+    <section class="operation-card">
+      <h3>操作日志与纠错</h3><p>保留所有关键操作；只能安全撤销最近一个有效操作。</p>
+      <button class="action-button wide" type="button" data-score-action="audit">查看操作日志<strong>${state.match.auditLog.length} 条</strong></button>
     </section>
     <section class="operation-card">
       <h3>比赛事件</h3><p>最近的得分、轮转、暂停和换人记录。</p>
@@ -577,11 +781,21 @@ function sheetHTML(set, printMode = false) {
       </div>
       ${sheetPersonnelHTML(set)}
       <div class="set-record">${paperTeamHTML(0, set)}${paperTeamHTML(1, set)}</div>
+      ${liberoControlHTML(set)}
+      ${sanctionControlHTML(set)}
       <div class="sheet-summary">
-        <div class="summary-events"><h4>备　注 / 自动记录</h4>${set.substitutions.flat().length ? set.substitutions.flat().map(sub => `<p>第 ${set.number} 局 · ${escapeHTML(sub.team)}：${escapeHTML(sub.out)} 号下，${escapeHTML(sub.in)} 号上（${escapeHTML(sub.score)}）</p>`).join("") : "<p>本局暂无换人记录。</p>"}${set.courtChanged ? "<p>决胜局领先队达到 8 分，已记录交换场区。</p>" : ""}</div>
+        <div class="summary-events"><h4>备　注 / 自动记录</h4>${set.substitutions.flat().length ? set.substitutions.flat().map(sub => `<p>第 ${set.number} 局 · ${escapeHTML(sub.team)}：${escapeHTML(sub.out)} 号下，${escapeHTML(sub.in)} 号上（${escapeHTML(sub.score)}）</p>`).join("") : "<p>本局暂无普通换人记录。</p>"}${set.courtChanged ? "<p>决胜局领先队达到 8 分，已记录交换场区。</p>" : ""}${state.match.auditLog.filter(entry => entry.type === "correction" && entry.setNumber === set.number).map(entry => `<p>纠错：${escapeHTML(entry.label)}；原因：${escapeHTML(entry.meta?.reason || "—")}</p>`).join("")}</div>
         <div class="match-results"><h4>比　赛　结　果</h4>${state.match.sets.map(item => `<div class="result-row"><b>${item.number}</b><span>${item.endTime ? `${item.startTime}–${item.endTime}` : "进行中"}</span><strong>${item.score[0]}</strong><strong>${item.score[1]}</strong></div>`).join("")}</div>
       </div>
     </section>`;
+}
+
+function liberoControlHTML(set) {
+  return `<section class="libero-control"><h4>自由人控制记录 / LIBERO CONTROL</h4><div>${[0, 1].map(teamIndex => `<article><b>${teamIndex === 0 ? "A" : "B"} · ${escapeHTML(state.teams[teamIndex].name)}</b>${set.liberoReplacements[teamIndex].length ? set.liberoReplacements[teamIndex].map(item => `<span>${escapeHTML(item.at)}　${escapeHTML(item.text)}（${escapeHTML(item.score)}）</span>`).join("") : "<span>本局暂无自由人替换。</span>"}</article>`).join("")}</div></section>`;
+}
+
+function sanctionControlHTML(set) {
+  return `<section class="sanction-control"><h4>判罚与延误 / SANCTIONS</h4>${set.sanctions.length ? `<div class="sanction-table"><b>队伍</b><b>成员</b><b>判罚</b><b>比分</b>${set.sanctions.map(item => `<span>${item.teamIndex === 0 ? "A" : "B"}</span><span>${escapeHTML(item.target)}</span><span>${escapeHTML(item.label)} · ${escapeHTML(item.card)}</span><span>${escapeHTML(item.scoreBefore)}${item.pointAwarded ? ` → ${escapeHTML(item.scoreAfter)}` : ""}</span>`).join("")}</div>` : "<p>本局暂无判罚记录。</p>"}</section>`;
 }
 
 function sheetPersonnelHTML(set) {
@@ -645,6 +859,7 @@ function paperTeamHTML(teamIndex, set) {
   const team = state.teams[teamIndex];
   const pointBase = set.number === state.match.maxSets ? 30 : 48;
   const pointCount = Math.max(pointBase, set.score[teamIndex]);
+  const sanctionPoints = new Set(set.rallies.filter(rally => rally.winner === teamIndex && rally.source === "sanction").map(rally => rally.teamPoint));
   return `<section class="paper-team">
     <div class="paper-team-head">
       <span>${teamIndex === 0 ? "A" : "B"}</span>
@@ -657,7 +872,7 @@ function paperTeamHTML(teamIndex, set) {
     <div class="paper-lower">
       <div class="point-area">
         <div class="point-area-head"><span>POINTS · 比分</span><span>${set.score[teamIndex]}</span></div>
-        <div class="point-grid">${Array.from({ length: pointCount }, (_, index) => index + 1).map(point => `<span class="point-cell ${point <= set.score[teamIndex] ? "marked" : ""} ${set.ended && point === set.score[teamIndex] ? "last" : ""}">${point}</span>`).join("")}</div>
+        <div class="point-grid">${Array.from({ length: pointCount }, (_, index) => index + 1).map(point => `<span class="point-cell ${point <= set.score[teamIndex] ? "marked" : ""} ${set.ended && point === set.score[teamIndex] ? "last" : ""} ${sanctionPoints.has(point) ? "penalty" : ""}">${point}</span>`).join("")}</div>
       </div>
       <div class="timeout-area"><h4>暂停 T</h4>${[0,1].map(index => `<div class="timeout-slot">${escapeHTML(set.timeouts[teamIndex][index] || "— : —")}</div>`).join("")}</div>
     </div>
@@ -684,20 +899,22 @@ function bindScoreActions() {
     if (action === "minus") undoPoint(team);
     if (action === "timeout") requestTimeout(team);
     if (action === "substitution") openSubstitutionModal(team);
+    if (action === "libero") openLiberoModal(team);
+    if (action === "sanction") openSanctionModal();
+    if (action === "audit") openAuditModal();
     if (action === "view-set") { state.viewSetIndex = Number(button.dataset.index); renderScore(); }
     if (action === "print") exportFullMatchPDF();
     if (action === "edit-info") openInfoModal();
   }));
 }
 
-function awardPoint(teamIndex, shouldRender = true) {
+function awardPoint(teamIndex, shouldRender = true, source = "rally") {
   const set = currentSet();
   if (set.ended) return;
-  state.match.undoStack.push({ set: clone(set), setsWon: clone(state.match.setsWon), matchEnded: state.match.ended });
-  if (state.match.undoStack.length > 80) state.match.undoStack.shift();
+  const before = source === "sanction" ? null : matchSnapshot();
   const wasServing = set.servingTeam === teamIndex;
   set.score[teamIndex] += 1;
-  set.rallies.push({ winner: teamIndex, at: formatClock() });
+  set.rallies.push({ winner: teamIndex, at: formatClock(), source, teamPoint: set.score[teamIndex] });
   if (!wasServing) {
     const previousTeam = set.servingTeam;
     closeActiveServiceRound(set, previousTeam);
@@ -709,15 +926,16 @@ function awardPoint(teamIndex, shouldRender = true) {
       endScore: null
     });
     const server = servicePlayer(set.onCourt[teamIndex], set.rotationIndex[teamIndex]);
-    set.events.push({ time: formatClock(), text: `${state.teams[teamIndex].name} 得分并获得发球权，轮转后由 ${server} 号发球。` });
+    set.events.push({ time: formatClock(), text: source === "sanction" ? `${state.teams[teamIndex].name} 因对方判罚得分并获得发球权，轮转后由 ${server} 号发球。` : `${state.teams[teamIndex].name} 得分并获得发球权，轮转后由 ${server} 号发球。` });
   } else {
-    set.events.push({ time: formatClock(), text: `${state.teams[teamIndex].name} 得分，继续发球。` });
+    set.events.push({ time: formatClock(), text: source === "sanction" ? `${state.teams[teamIndex].name} 因对方判罚得分，继续发球。` : `${state.teams[teamIndex].name} 得分，继续发球。` });
   }
   if (set.number === state.match.maxSets && !set.courtChanged && Math.max(...set.score) >= 8) {
     set.courtChanged = true;
     set.events.push({ time: formatClock(), text: `领先队达到 8 分，双方交换场区；轮次保持不变。` });
   }
   if (isSetComplete(set.score[0], set.score[1], set.number, state.match.maxSets)) finishSet(set);
+  if (source !== "sanction") recordAuditAction("score", `${state.teams[teamIndex].name} +1`, before, { teamIndex, source });
   if (shouldRender) {
     state.viewSetIndex = state.match.currentSetIndex;
     render();
@@ -735,12 +953,11 @@ function closeActiveServiceRound(set, teamIndex) {
 
 function undoPoint(teamIndex) {
   const set = currentSet();
-  if (set.rallies.at(-1)?.winner !== teamIndex) return toast("减分只用于撤销该队刚刚获得的最后一分。", "error");
-  const snapshot = state.match.undoStack.pop();
-  if (!snapshot) return;
-  state.match.sets[state.match.currentSetIndex] = snapshot.set;
-  state.match.setsWon = snapshot.setsWon;
-  state.match.ended = snapshot.matchEnded;
+  if (set.rallies.at(-1)?.winner !== teamIndex || set.rallies.at(-1)?.source === "sanction") return toast("减分只用于撤销该队刚刚获得的普通得分；判罚得分请在操作日志中纠正。", "error");
+  const latest = latestReversibleAction();
+  if (latest?.type !== "score" || latest.meta?.teamIndex !== teamIndex) return toast("最后一个有效操作不是该队得分，请打开操作日志检查。", "error");
+  const result = reverseLatestAction("记录员使用减分按钮撤销最后一次普通得分");
+  if (!result.ok) return toast(result.message, "error");
   render();
   toast("已撤销上一分，发球轮次和记录表同步恢复。 ");
 }
@@ -764,9 +981,11 @@ function finishSet(set) {
 function requestTimeout(teamIndex) {
   const set = currentSet();
   if (set.timeouts[teamIndex].length >= RULESETS[state.selectedRule].timeoutsPerSet) return;
+  const before = matchSnapshot();
   const score = `${set.score[teamIndex]}:${set.score[1 - teamIndex]}`;
   set.timeouts[teamIndex].push(score);
   set.events.push({ time: formatClock(), text: `${state.teams[teamIndex].name} 请求第 ${set.timeouts[teamIndex].length} 次暂停（${score}）。` });
+  recordAuditAction("timeout", `${state.teams[teamIndex].name} 第 ${set.timeouts[teamIndex].length} 次暂停`, before, { teamIndex });
   renderScore();
   openTimeoutModal(teamIndex, RULESETS[state.selectedRule].timeoutSeconds);
 }
@@ -790,10 +1009,186 @@ function openTimeoutModal(teamIndex, seconds) {
   });
 }
 
+function openSanctionModal() {
+  const set = currentSet();
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal"><div class="modal-head"><div><h2>判罚与延误登记</h2><p>根据 FIVB 规则自动判断不当请求和延误的后续处理。</p></div><button class="icon-button" id="close-modal" type="button">×</button></div><div class="form-grid"><div class="field"><label>责任队伍</label><select id="sanction-team">${state.teams.map((team, index) => `<option value="${index}">${index === 0 ? "A" : "B"} · ${escapeHTML(team.name)}</option>`).join("")}</select></div><div class="field"><label>登记类型</label><select id="sanction-kind"><option value="improper">不当请求</option><option value="delay">比赛延误</option><option value="warning">行为警告（黄牌）</option><option value="penalty">行为罚分（红牌）</option><option value="expulsion">驱逐（红黄牌同持）</option><option value="disqualification">取消比赛资格（红黄牌分持）</option></select></div><div class="field full"><label>责任成员</label><input id="sanction-target" placeholder="例如：8 号球员 / 主教练 / 球队" /></div><div class="field full"><label>原因或备注</label><textarea id="sanction-note" rows="3" placeholder="记录裁判员说明，便于赛后审核"></textarea></div></div><div class="rule-note"><span>i</span><p>首次不当请求只记录；重复不当请求按延误处理。首次延误为警告，之后的延误罚对方一分并给予发球权。</p></div><div id="modal-validation"></div><div class="modal-actions"><button class="ghost-button" id="cancel-modal" type="button">取消</button><button class="primary-button blue" id="confirm-sanction" type="button">确认登记</button></div></section></div>`;
+  const close = () => modalRoot.replaceChildren();
+  modalRoot.querySelector("#close-modal").addEventListener("click", close);
+  modalRoot.querySelector("#cancel-modal").addEventListener("click", close);
+  modalRoot.querySelector("#confirm-sanction").addEventListener("click", () => {
+    const result = applySanction(
+      Number(modalRoot.querySelector("#sanction-team").value),
+      modalRoot.querySelector("#sanction-kind").value,
+      modalRoot.querySelector("#sanction-target").value.trim(),
+      modalRoot.querySelector("#sanction-note").value.trim()
+    );
+    if (!result.ok) modalRoot.querySelector("#modal-validation").innerHTML = `<div class="validation-banner">${escapeHTML(result.message)}</div>`;
+  });
+}
+
+function openAuditModal() {
+  const entries = [...state.match.auditLog].reverse();
+  const latest = latestReversibleAction();
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal wide"><div class="modal-head"><div><h2>操作日志与纠错</h2><p>日志按时间倒序显示。为保持轮次和记录一致，只能撤销最近一个有效操作。</p></div><button class="icon-button" id="close-modal" type="button">×</button></div><div class="audit-list">${entries.length ? entries.map(entry => `<article class="audit-entry ${entry.reversed ? "reversed" : ""} ${entry.type === "correction" ? "correction" : ""}"><time>${escapeHTML(entry.at)}</time><span class="audit-type">${escapeHTML(entry.type)}</span><div><b>${escapeHTML(entry.label)}</b><small>第 ${entry.setNumber || "—"} 局 · 比分 ${escapeHTML(entry.score)}${entry.meta?.reason ? ` · 原因：${escapeHTML(entry.meta.reason)}` : ""}</small></div>${entry.reversed ? "<em>已撤销</em>" : ""}</article>`).join("") : '<div class="event-empty">暂无操作日志</div>'}</div>${latest ? `<div class="audit-correction"><div><b>可撤销的最近操作</b><span>${escapeHTML(latest.label)} · 第 ${latest.setNumber} 局 · ${escapeHTML(latest.score)}</span></div><div class="field"><label>纠错原因 <span>*</span></label><input id="correction-reason" placeholder="例如：裁判员更正判定 / 记录员误触" /></div><button class="danger-button" id="reverse-action" type="button">撤销此操作</button></div>` : '<div class="rule-note"><span>✓</span><p>当前没有可撤销的操作。</p></div>'}<div id="modal-validation"></div></section></div>`;
+  modalRoot.querySelector("#close-modal").addEventListener("click", () => modalRoot.replaceChildren());
+  modalRoot.querySelector("#reverse-action")?.addEventListener("click", () => {
+    const reason = modalRoot.querySelector("#correction-reason").value.trim();
+    if (!reason) {
+      modalRoot.querySelector("#modal-validation").innerHTML = '<div class="validation-banner">请填写纠错原因。</div>';
+      return;
+    }
+    const result = reverseLatestAction(reason);
+    if (!result.ok) {
+      modalRoot.querySelector("#modal-validation").innerHTML = `<div class="validation-banner">${escapeHTML(result.message)}</div>`;
+      return;
+    }
+    modalRoot.replaceChildren();
+    state.viewSetIndex = state.match.currentSetIndex;
+    render();
+    toast(`已撤销“${result.entry.label}”，纠错原因已写入日志。`);
+    const set = currentSet();
+    if (set?.ended && state.match.ended) setTimeout(openMatchEndModal, 80);
+    else if (set?.ended) setTimeout(() => openSetEndModal(set), 80);
+  });
+}
+
+function resolveDelaySanction(teamIndex) {
+  if (!state.match.delayWarnings[teamIndex]) {
+    state.match.delayWarnings[teamIndex] = true;
+    return { resolvedKind: "delayWarning", label: "延误警告", card: "D-W", pointAwarded: false };
+  }
+  return { resolvedKind: "delayPenalty", label: "延误判罚", card: "D-P", pointAwarded: true };
+}
+
+function applySanction(teamIndex, requestedKind, target, note, shouldRender = true) {
+  const set = currentSet();
+  if (set.ended) return { ok: false, message: "本局已结束，不能继续登记判罚。" };
+  if (![0, 1].includes(teamIndex)) return { ok: false, message: "请选择责任队伍。" };
+  const before = matchSnapshot();
+  let outcome;
+  if (requestedKind === "improper") {
+    state.match.improperRequests[teamIndex] += 1;
+    outcome = state.match.improperRequests[teamIndex] === 1
+      ? { resolvedKind: "improper", label: "不当请求", card: "IR", pointAwarded: false }
+      : resolveDelaySanction(teamIndex);
+  } else if (requestedKind === "delay") {
+    outcome = resolveDelaySanction(teamIndex);
+  } else {
+    outcome = {
+      warning: { resolvedKind: "warning", label: "行为警告", card: "黄牌", pointAwarded: false },
+      penalty: { resolvedKind: "penalty", label: "行为罚分", card: "红牌", pointAwarded: true },
+      expulsion: { resolvedKind: "expulsion", label: "驱逐", card: "红黄牌同持", pointAwarded: false },
+      disqualification: { resolvedKind: "disqualification", label: "取消比赛资格", card: "红黄牌分持", pointAwarded: false }
+    }[requestedKind];
+  }
+  if (!outcome) return { ok: false, message: "未知的判罚类型。" };
+  const scoreBefore = `${set.score[0]}:${set.score[1]}`;
+  const record = { id: `${Date.now()}-${state.match.sanctions.length + 1}`, teamIndex, team: state.teams[teamIndex].name, requestedKind, ...outcome, target: target || "球队", note, setNumber: set.number, scoreBefore, scoreAfter: scoreBefore, at: formatClock() };
+  state.match.sanctions.push(record);
+  set.sanctions.push(record);
+  set.events.push({ time: record.at, text: `${state.teams[teamIndex].name}：${record.label}${target ? `（${target}）` : ""}${note ? `，${note}` : ""}。` });
+  if (record.pointAwarded) {
+    awardPoint(1 - teamIndex, false, "sanction");
+    record.scoreAfter = `${set.score[0]}:${set.score[1]}`;
+  }
+  recordAuditAction("sanction", `${state.teams[teamIndex].name}：${record.label}`, before, { teamIndex, requestedKind, resolvedKind: record.resolvedKind, pointAwarded: record.pointAwarded });
+  if (shouldRender) {
+    modalRoot.replaceChildren();
+    render();
+    toast(record.pointAwarded ? `${record.label}已登记，对方获得一分和发球权。` : `${record.label}已写入记录表。`);
+  }
+  return { ok: true, record };
+}
+
+function openLiberoModal(teamIndex) {
+  const set = currentSet();
+  const team = state.teams[teamIndex];
+  const liberos = liberoPlayers(teamIndex);
+  const control = set.liberoState[teamIndex];
+  const canReplace = canMakeLiberoReplacement(control.lastReplacementRally, set.rallies.length);
+  if (!liberos.length) {
+    modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal"><div class="modal-head"><div><h2>${escapeHTML(team.name)} 自由人替换</h2><p>赛前名单中没有登记自由人。</p></div><button class="icon-button" id="close-modal" type="button">×</button></div><div class="rule-note"><span>i</span><p>如需使用自由人，请重新开始比赛并在球队名单中标记自由人。</p></div></section></div>`;
+    modalRoot.querySelector("#close-modal").addEventListener("click", () => modalRoot.replaceChildren());
+    return;
+  }
+  const gapWarning = canReplace ? "" : `<div class="validation-banner">上一次自由人替换后尚未完成一个回合，当前不能再次替换。</div>`;
+  if (control.active) {
+    const active = control.active;
+    const secondLiberos = liberos.filter(player => player.number !== active.libero && !set.onCourt[teamIndex].includes(player.number));
+    const mustExit = liberoNeedsImmediateExit(teamIndex, set);
+    modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal"><div class="modal-head"><div><h2>${escapeHTML(team.name)} 自由人替换</h2><p>${escapeHTML(active.libero)} 号自由人当前替换 ${escapeHTML(active.regular)} 号，位于 ${roman[courtPositionForIndex(active.positionIndex, set.rotationIndex[teamIndex])]} 号位。</p></div><button class="icon-button" id="close-modal" type="button">×</button></div>${mustExit ? '<div class="validation-banner">自由人即将进入前排或处于发球位置，必须由对应常规球员换回。</div>' : gapWarning}<div class="choice-stack"><label><input type="radio" name="libero-action" value="exit" checked /> <span><b>${escapeHTML(active.regular)} 号常规球员换回</b><small>自由人离场，本次不计普通换人。</small></span></label>${!mustExit && secondLiberos.length ? `<label><input type="radio" name="libero-action" value="switch" /> <span><b>更换为第二自由人</b><small>对应常规球员仍为 ${escapeHTML(active.regular)} 号。</small></span></label><div class="field"><label>第二自由人</label><select id="second-libero">${secondLiberos.map(player => `<option value="${escapeHTML(player.number)}">${escapeHTML(player.number)} · ${escapeHTML(player.name)}</option>`).join("")}</select></div>` : ""}</div><div id="modal-validation"></div><div class="modal-actions"><button class="ghost-button" id="cancel-modal" type="button">取消</button><button class="primary-button blue" id="confirm-libero" type="button" ${!canReplace ? "disabled" : ""}>确认自由人替换</button></div></section></div>`;
+  } else {
+    const regulars = eligibleLiberoRegulars(teamIndex, set);
+    modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal"><div class="modal-head"><div><h2>${escapeHTML(team.name)} 自由人进入</h2><p>只能替换当前后排常规球员；发球队的 I 号位球员不能被自由人替换。</p></div><button class="icon-button" id="close-modal" type="button">×</button></div>${gapWarning}<div class="substitution-visual"><div class="field"><label>离场常规球员</label><select id="libero-regular"><option value="">请选择</option>${regulars.map(item => `<option value="${escapeHTML(item.number)}">${escapeHTML(item.number)} · ${escapeHTML(playerName(teamIndex, item.number))}（${roman[item.courtPosition]}）</option>`).join("")}</select></div><div class="substitution-arrow">→</div><div class="field"><label>进入自由人</label><select id="libero-in"><option value="">请选择</option>${liberos.filter(player => !set.onCourt[teamIndex].includes(player.number)).map(player => `<option value="${escapeHTML(player.number)}">${escapeHTML(player.number)} · ${escapeHTML(player.name)}</option>`).join("")}</select></div></div><div id="modal-validation"></div><div class="modal-actions"><button class="ghost-button" id="cancel-modal" type="button">取消</button><button class="primary-button blue" id="confirm-libero" type="button" ${!canReplace || !regulars.length ? "disabled" : ""}>确认自由人进入</button></div></section></div>`;
+  }
+  const close = () => modalRoot.replaceChildren();
+  modalRoot.querySelector("#close-modal").addEventListener("click", close);
+  modalRoot.querySelector("#cancel-modal").addEventListener("click", close);
+  modalRoot.querySelector("#confirm-libero")?.addEventListener("click", () => {
+    const action = modalRoot.querySelector('[name="libero-action"]:checked')?.value || "enter";
+    const regular = control.active?.regular || modalRoot.querySelector("#libero-regular")?.value || "";
+    const libero = action === "switch" ? modalRoot.querySelector("#second-libero")?.value : (control.active?.libero || modalRoot.querySelector("#libero-in")?.value || "");
+    const result = performLiberoReplacement(teamIndex, action, regular, libero);
+    if (!result.ok) modalRoot.querySelector("#modal-validation").innerHTML = `<div class="validation-banner">${escapeHTML(result.message)}</div>`;
+  });
+}
+
+function performLiberoReplacement(teamIndex, action, regular, libero, shouldRender = true) {
+  const set = currentSet();
+  const control = set.liberoState[teamIndex];
+  if (!canMakeLiberoReplacement(control.lastReplacementRally, set.rallies.length)) return { ok: false, message: "两次自由人替换之间必须完成一个回合。" };
+  const before = matchSnapshot();
+  let positionIndex = -1;
+  let text = "";
+  if (action === "enter") {
+    if (control.active) return { ok: false, message: "已有自由人在场。" };
+    const selectedLibero = liberoPlayers(teamIndex).find(player => player.number === libero);
+    if (!selectedLibero) return { ok: false, message: "请选择已登记的自由人。" };
+    const eligible = eligibleLiberoRegulars(teamIndex, set).find(item => item.number === regular);
+    if (!eligible) return { ok: false, message: "所选球员当前不在可替换的后排位置。" };
+    positionIndex = eligible.positionIndex;
+    set.onCourt[teamIndex][positionIndex] = libero;
+    control.active = { libero, regular, positionIndex };
+    text = `${libero} 号自由人进入，替换 ${regular} 号常规球员`;
+  } else if (action === "exit") {
+    if (!control.active || control.active.regular !== regular) return { ok: false, message: "自由人对应关系已变化，请重新打开操作窗口。" };
+    positionIndex = control.active.positionIndex;
+    libero = control.active.libero;
+    set.onCourt[teamIndex][positionIndex] = regular;
+    control.active = null;
+    text = `${regular} 号常规球员换回，${libero} 号自由人离场`;
+  } else if (action === "switch") {
+    if (!control.active) return { ok: false, message: "当前没有场上自由人。" };
+    if (liberoNeedsImmediateExit(teamIndex, set)) return { ok: false, message: "自由人处于必须离场的位置，不能直接更换为第二自由人。" };
+    const second = liberoPlayers(teamIndex).find(player => player.number === libero && player.number !== control.active.libero);
+    if (!second || set.onCourt[teamIndex].includes(libero)) return { ok: false, message: "请选择场外的第二自由人。" };
+    positionIndex = control.active.positionIndex;
+    const previousLibero = control.active.libero;
+    set.onCourt[teamIndex][positionIndex] = libero;
+    control.active.libero = libero;
+    text = `${previousLibero} 号自由人离场，${libero} 号第二自由人进入，继续替换 ${regular} 号`;
+  } else {
+    return { ok: false, message: "未知的自由人操作。" };
+  }
+  control.lastReplacementRally = set.rallies.length;
+  const score = `${set.score[teamIndex]}:${set.score[1 - teamIndex]}`;
+  const record = { team: state.teams[teamIndex].name, action, regular, libero, positionIndex, score, at: formatClock(), rallyIndex: set.rallies.length, text };
+  set.liberoReplacements[teamIndex].push(record);
+  set.events.push({ time: record.at, text: `${state.teams[teamIndex].name} 自由人替换：${text}（${score}）。` });
+  recordAuditAction("libero", `${state.teams[teamIndex].name}：${text}`, before, { teamIndex, action, regular, libero });
+  if (shouldRender) {
+    modalRoot.replaceChildren();
+    render();
+    toast("自由人替换已写入电子控制记录。 ");
+  }
+  return { ok: true };
+}
+
 function openSubstitutionModal(teamIndex) {
   const set = currentSet();
-  const onCourt = set.onCourt[teamIndex];
-  const bench = rosterNumbers(teamIndex).filter(number => !onCourt.includes(number) && !state.teams[teamIndex].roster.find(player => player.number === number)?.libero);
+  const activeLibero = set.liberoState[teamIndex].active;
+  const onCourt = set.onCourt[teamIndex].filter(number => !state.teams[teamIndex].roster.find(player => player.number === number)?.libero);
+  const bench = rosterNumbers(teamIndex).filter(number => !set.onCourt[teamIndex].includes(number) && number !== activeLibero?.regular && !state.teams[teamIndex].roster.find(player => player.number === number)?.libero);
   modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal"><div class="modal-head"><div><h2>${escapeHTML(state.teams[teamIndex].name)} 换人</h2><p>本局已使用 ${set.subCount[teamIndex]} / ${currentProfile().substitutionsPerSet} 次普通换人。</p></div><button class="icon-button" id="close-modal" type="button">×</button></div><div class="substitution-visual"><div class="field"><label>离场号码</label><select id="sub-out"><option value="">请选择场上球员</option>${onCourt.map(number => `<option value="${escapeHTML(number)}">${escapeHTML(number)} · ${escapeHTML(playerName(teamIndex, number))}</option>`).join("")}</select></div><div class="substitution-arrow">→</div><div class="field"><label>上场号码</label><select id="sub-in"><option value="">请选择替补球员</option>${bench.map(number => `<option value="${escapeHTML(number)}">${escapeHTML(number)} · ${escapeHTML(playerName(teamIndex, number))}</option>`).join("")}</select></div></div><div id="modal-validation"></div><div class="modal-actions"><button class="ghost-button" id="cancel-modal" type="button">取消</button><button class="primary-button blue" id="confirm-sub" type="button">确认换人</button></div></section></div>`;
   const close = () => modalRoot.replaceChildren();
   modalRoot.querySelector("#close-modal").addEventListener("click", close);
@@ -817,6 +1212,7 @@ function performSubstitution(teamIndex, out, incoming, shouldRender = true) {
   if (set.onCourt[teamIndex].includes(incoming)) return { ok: false, message: `${incoming} 号已经在场上。` };
   const player = state.teams[teamIndex].roster.find(item => item.number === incoming);
   if (player?.libero) return { ok: false, message: "自由人替换不计入普通换人，应使用自由人控制流程。" };
+  const before = matchSnapshot();
   const starter = set.lineups[teamIndex].includes(out);
   let original = out;
   if (starter) {
@@ -836,6 +1232,7 @@ function performSubstitution(teamIndex, out, incoming, shouldRender = true) {
   const positionIndex = set.lineups[teamIndex].indexOf(original);
   set.substitutions[teamIndex].push({ team: state.teams[teamIndex].name, out, in: incoming, score, positionIndex, at: formatClock() });
   set.events.push({ time: formatClock(), text: `${state.teams[teamIndex].name} 换人：${out} 号下，${incoming} 号上（${score}）。` });
+  recordAuditAction("substitution", `${state.teams[teamIndex].name} 换人：${out} 号下，${incoming} 号上`, before, { teamIndex, out, incoming });
   if (shouldRender) {
     modalRoot.replaceChildren();
     render();
@@ -851,7 +1248,10 @@ function openSetEndModal(set) {
 
 function openLineupModal(nextNumber) {
   const previous = currentSet();
-  const suggestedLineups = previous.lineups.map((lineup, teamIndex) => lineup.map(number => previous.onCourt[teamIndex].includes(number) ? number : previous.onCourt[teamIndex][lineup.indexOf(number)]));
+  const suggestedLineups = previous.onCourt.map((lineup, teamIndex) => lineup.map(number => {
+    const player = state.teams[teamIndex].roster.find(item => item.number === number);
+    return player?.libero ? (previous.liberoState[teamIndex].active?.regular || previous.lineups[teamIndex][lineup.indexOf(number)]) : number;
+  }));
   const isDecidingSet = nextNumber === state.match.maxSets;
   const suggestedServer = isDecidingSet ? 0 : 1 - previous.firstServer;
   modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal wide"><div class="modal-head"><div><h2>第 ${nextNumber} 局位置轮次表</h2><p>${isDecidingSet ? "决胜局应重新掷边，请确认首先发球的队伍。" : "请按教练提交的位置表重新填写，系统不会沿用上一局换人关系。"}</p></div></div>${setHistoryHTML(true)}<div class="lineup-modal-grid">${state.teams.map((team, index) => lineupCard(team, index, suggestedLineups[index], "next")).join("")}</div><div class="serve-choice">${state.teams.map((team, index) => `<label><input type="radio" name="nextServer" value="${index}" ${suggestedServer === index ? "checked" : ""} /> ${escapeHTML(team.name)} 先发球</label>`).join("")}</div><div id="modal-validation"></div><div class="modal-actions"><button class="primary-button blue" id="start-next-set" type="button">确认轮次并开始第 ${nextNumber} 局</button></div></section></div>`;
@@ -870,10 +1270,12 @@ function openLineupModal(nextNumber) {
       }
     }
     const firstServer = Number(modalRoot.querySelector('[name="nextServer"]:checked').value);
+    const before = matchSnapshot();
     state.match.sets.push(createSet(nextNumber, lineups, firstServer));
     state.match.currentSetIndex += 1;
     state.match.undoStack = [];
     state.viewSetIndex = state.match.currentSetIndex;
+    recordAuditAction("set", `开始第 ${nextNumber} 局并写入双方轮次`, before, { nextNumber, firstServer });
     modalRoot.replaceChildren();
     render();
   });
