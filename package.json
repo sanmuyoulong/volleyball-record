@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node scripts/build-sites.mjs",
     "dev": "node server.mjs",
     "test": "node --test",
     "test:advanced": "node scripts/advanced-flow-check.mjs",

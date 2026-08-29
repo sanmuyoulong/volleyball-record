@@ -8,7 +8,7 @@ try {
   const page = await context.newPage();
   await page.goto("http://127.0.0.1:4173/", { waitUntil: "networkidle" });
   await page.waitForTimeout(700);
-  await page.screenshot({ path: resolve(process.argv[2] || "rules-selection.png"), fullPage: true });
+  await page.screenshot({ path: resolve(process.argv[2] || "assets/rules-selection.png"), fullPage: true });
   await context.close();
 } finally {
   await browser.close();

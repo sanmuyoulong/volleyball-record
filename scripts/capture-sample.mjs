@@ -10,7 +10,7 @@ try {
   await page.locator("#load-demo").click();
   await page.locator(".scoreboard").waitFor();
   await page.waitForTimeout(900);
-  await page.screenshot({ path: resolve(process.argv[2] || "sample-page.png"), fullPage: true });
+  await page.screenshot({ path: resolve(process.argv[2] || "assets/sample-page.png"), fullPage: true });
   await context.close();
 } finally {
   await browser.close();

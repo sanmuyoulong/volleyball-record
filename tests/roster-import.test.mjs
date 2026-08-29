@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeRosterRows, parseDelimitedText } from "../roster-import.js";
+import { normalizeRosterRows, parseDelimitedText } from "../src/roster-import.js";
 
 test("CSV 解析支持 BOM、引号和字段内逗号", () => {
   const rows = parseDelimitedText('\uFEFF号码,姓名,自由人\r\n1,"张,三",\r\n14,李四,是');

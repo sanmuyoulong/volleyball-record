@@ -9,7 +9,7 @@ import {
   rotateServiceIndex,
   setTarget,
   validateLineup
-} from "../rules.js";
+} from "../src/rules.js";
 
 test("前四局 25 分且领先 2 分才结束", () => {
   assert.equal(isSetComplete(25, 23, 1), true);

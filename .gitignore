@@ -1,5 +1,8 @@
 node_modules/
+dist/
 tmp/
+output/
+.workbuddy/
 *.log
 .DS_Store
 Thumbs.db
