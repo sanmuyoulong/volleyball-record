@@ -19,6 +19,7 @@ const modalRoot = document.querySelector("#modal-root");
 const toastRoot = document.querySelector("#toast-root");
 const STORAGE_KEY = "volley-record-state-v1";
 const SNAPSHOT_KEY = "volley-record-recovery-v1";
+const CONTACT_EMAIL = "2318390047@qq.com";
 const roman = ["I", "II", "III", "IV", "V", "VI"];
 
 function defaultRoster() {
@@ -291,7 +292,16 @@ function renderLanding() {
     state.setupStep = 1;
     render();
   };
+  app.querySelector("#contact-developer").onclick = openContactModal;
   app.querySelector("#load-demo").onclick = loadDemoMatch;
+}
+
+function openContactModal() {
+  const mailto = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("Volley Record 使用反馈")}`;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal"><div class="modal-head"><div><h2>联系与反馈</h2><p>Volley Record 目前仍在测试中，欢迎提供改进意见并反馈遇到的 Bug。</p></div><button class="icon-button" id="close-contact" type="button" aria-label="关闭联系窗口">×</button></div><div class="contact-card"><span>联系邮箱</span><a href="${mailto}">${CONTACT_EMAIL}</a><small>反馈时可以附上操作步骤、页面截图和使用设备，方便定位问题。</small></div><div class="modal-actions"><button class="ghost-button" id="cancel-contact" type="button">关闭</button><a class="primary-button blue" href="${mailto}">发送邮件</a></div></section></div>`;
+  const close = () => modalRoot.replaceChildren();
+  modalRoot.querySelector("#close-contact").addEventListener("click", close);
+  modalRoot.querySelector("#cancel-contact").addEventListener("click", close);
 }
 
 function setupHeading(title, subtitle, step) {

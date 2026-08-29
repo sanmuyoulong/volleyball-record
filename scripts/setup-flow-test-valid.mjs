@@ -14,6 +14,12 @@ try {
   await page.locator('[data-profile="test2026"]').click();
   if (await page.locator(".landing").getAttribute("data-stability-probe") !== "landing") throw new Error("Rule selection replaced the landing page root");
   await page.locator('[data-profile="official"]').click();
+  await page.locator("#contact-developer").click();
+  if (!await page.getByText("2318390047@qq.com", { exact: true }).isVisible()) throw new Error("Contact email is missing");
+  if (!await page.getByText("目前仍在测试中", { exact: false }).isVisible()) throw new Error("Contact testing notice is missing");
+  const contactHref = await page.getByRole("link", { name: "发送邮件" }).getAttribute("href");
+  if (!contactHref?.startsWith("mailto:2318390047@qq.com")) throw new Error(`Unexpected contact link: ${contactHref}`);
+  await page.locator("#cancel-contact").click();
   await page.locator("#start-setup").click();
   await page.locator(".setup-layout").evaluate(element => { element.dataset.stabilityProbe = "setup"; });
   const assertSetupRootStable = async label => {

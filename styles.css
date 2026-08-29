@@ -187,6 +187,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .rule-note p { margin: 0; color: #667085; font-size: 11px; line-height: 1.65; }
 .rule-note strong { color: #344054; }
 .landing-actions { margin-top: 26px; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.landing-secondary-actions { display: flex; align-items: center; gap: 8px; }
 
 .setup-layout {
   width: min(1380px, calc(100% - 48px));
@@ -432,6 +433,11 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .modal-head p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .icon-button { width: 34px; height: 34px; border-radius: 50%; background: #f1f3f5; }
 .modal-actions { margin-top: 25px; display: flex; justify-content: flex-end; gap: 10px; }
+.contact-card { padding: 20px; display: grid; gap: 7px; border: 1px solid #cdddf7; border-radius: 14px; background: #f5f8ff; }
+.contact-card span { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+.contact-card a { width: fit-content; color: var(--blue); font-size: clamp(20px, 4vw, 28px); font-weight: 800; text-decoration: none; word-break: break-all; }
+.contact-card a:hover { text-decoration: underline; }
+.contact-card small { color: var(--muted); font-size: 10px; line-height: 1.6; }
 .timeout-display { padding: 28px; margin: 12px 0; text-align: center; border-radius: 16px; background: var(--ink); color: white; }
 .timeout-display strong { display: block; font-variant-numeric: tabular-nums; font-size: 72px; line-height: 1; }
 .timeout-display span { display: block; margin-top: 8px; color: #aeb5be; font-size: 11px; letter-spacing: .12em; }
@@ -585,6 +591,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   .rule-card { padding: 17px 14px; grid-template-columns: 21px 1fr; }
   .rule-card .arrow { display: none; }
   .landing-actions { align-items: stretch; flex-direction: column-reverse; }
+  .landing-secondary-actions { justify-content: space-between; }
   .form-grid { grid-template-columns: 1fr; }
   .field.full { grid-column: auto; }
   .form-actions { align-items: stretch; flex-direction: column-reverse; }
