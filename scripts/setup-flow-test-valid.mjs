@@ -7,7 +7,7 @@ try {
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.goto("http://127.0.0.1:4173/", { waitUntil: "networkidle" });
+  await page.goto("http://127.0.0.1:4173/record/", { waitUntil: "networkidle" });
   await page.locator(".landing").evaluate(element => { element.dataset.stabilityProbe = "landing"; });
   await page.locator('[data-profile="test2026"]').click();
   if (await page.locator(".landing").getAttribute("data-stability-probe") !== "landing") throw new Error("Rule selection replaced the landing page root");

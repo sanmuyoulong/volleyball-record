@@ -1,7 +1,7 @@
 import { deflateRawSync } from "node:zlib";
 import { launchBrowser } from "./_browser.mjs";
 
-const baseUrl = process.env.VOLLEY_URL || "http://127.0.0.1:4173/";
+const baseUrl = process.env.VOLLEY_URL || "http://127.0.0.1:4173/record/";
 
 const u16 = value => [value & 255, (value >>> 8) & 255];
 const u32 = value => [value & 255, (value >>> 8) & 255, (value >>> 16) & 255, (value >>> 24) & 255];

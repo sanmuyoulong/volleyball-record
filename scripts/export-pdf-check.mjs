@@ -2,7 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { launchBrowser } from "./_browser.mjs";
 
-const baseUrl = process.env.VOLLEY_URL || "http://127.0.0.1:4173/";
+const baseUrl = process.env.VOLLEY_URL || "http://127.0.0.1:4173/record/";
 const outputPath = resolve(process.argv[2] || "output/pdf/volleyball-match-record-sample.pdf");
 await mkdir(dirname(outputPath), { recursive: true });
 

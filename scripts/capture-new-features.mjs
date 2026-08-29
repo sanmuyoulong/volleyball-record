@@ -8,7 +8,7 @@ try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
   const page = await context.newPage();
   await page.addInitScript(() => localStorage.clear());
-  await page.goto("http://127.0.0.1:4173/", { waitUntil: "networkidle" });
+  await page.goto("http://127.0.0.1:4173/record/", { waitUntil: "networkidle" });
   await page.locator("#start-setup").click();
   await page.locator('[name="competition"]').fill("城市排球邀请赛");
   await page.locator('[name="scheduledTime"]').fill("19:30");

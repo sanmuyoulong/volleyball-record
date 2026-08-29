@@ -3,119 +3,115 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="基于 FIVB 记录表流程的专业排球电子记分工具" />
-    <title>Volley Record · 排球电子记录表</title>
+    <meta name="description" content="面向校园、俱乐部与业余赛事的一站式排球赛事记录与管理平台" />
+    <title>Volley Record · 排球赛事记录与管理平台</title>
     <link rel="stylesheet" href="styles.css" />
+    <link rel="icon" href="assets/favicon.ico" />
   </head>
   <body>
     <div class="app-frame">
       <header class="topbar">
-        <a class="brand" href="#" aria-label="Volley Record 首页">
-          <span class="brand-mark" aria-hidden="true">
-            <span></span><span></span><span></span>
-          </span>
-          <span>
-            <strong>VOLLEY RECORD</strong>
-            <small>排球电子记录表</small>
-          </span>
+        <a class="brand" href="./" aria-label="Volley Record 首页">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span><strong>VOLLEY RECORD</strong><small>排球赛事工作台</small></span>
         </a>
-        <div class="topbar-actions">
-          <span class="save-state"><i></i><span id="save-label">本机自动保存</span></span>
-          <button class="ghost-button compact" id="data-manager" type="button">数据管理</button>
-          <button class="ghost-button compact" id="reset-app" type="button">重新开始</button>
-        </div>
+        <nav class="product-nav" aria-label="产品功能">
+          <a class="active" href="./">首页</a>
+          <a href="record/">比赛记分</a>
+          <a href="tournaments/">赛事管理 <small>规划中</small></a>
+        </nav>
+        <a class="primary-button compact topbar-cta" href="record/">开始记分 <span>→</span></a>
       </header>
 
-      <main id="app" aria-live="polite"></main>
+      <main class="home-page page-enter">
+        <section class="home-hero" aria-labelledby="home-title">
+          <div class="home-hero-copy">
+            <div class="availability-line"><span></span>比赛记分模块现已可用</div>
+            <h1 id="home-title">为每一场比赛，<br />建立一份<em>可信记录。</em></h1>
+            <p>Volley Record 正在成为面向校园、俱乐部和业余赛事的一站式排球赛事平台。现在从专业记分开始，未来逐步连接赛事、球队与协作成员。</p>
+            <div class="home-hero-actions">
+              <a class="primary-button blue home-primary" href="record/">进入比赛记分 <span>→</span></a>
+              <a class="ghost-button home-secondary" href="#modules">浏览平台功能</a>
+            </div>
+            <div class="home-proof" aria-label="当前能力">
+              <span><b>01</b> 遵循 FIVB 记录流程</span>
+              <span><b>02</b> 本机自动保存</span>
+              <span><b>03</b> 支持 PDF / JSON 导出</span>
+            </div>
+          </div>
+
+          <div class="product-preview" aria-label="比赛记分功能预览">
+            <div class="preview-head">
+              <div><small>LIVE MATCH DESK</small><strong>城市排球邀请赛</strong></div>
+              <span class="live-chip"><i></i> 记录中</span>
+            </div>
+            <div class="preview-score">
+              <article><span>A</span><h2>海风队</h2><strong>18</strong></article>
+              <div><small>SET 2</small><b>1 : 0</b><span>发球轮次自动跟踪</span></div>
+              <article class="team-b"><span>B</span><h2>山城队</h2><strong>16</strong></article>
+            </div>
+            <div class="preview-controls">
+              <span>暂停 <b>1 / 2</b></span><span>换人 <b>3 / 6</b></span><span>当前发球 <b>07 号</b></span>
+            </div>
+            <div class="preview-log"><span>18:32</span><p>海风队得分，发球权保持，比赛记录已自动保存。</p></div>
+          </div>
+        </section>
+
+        <section class="home-section" id="modules" aria-labelledby="modules-title">
+          <div class="home-section-heading">
+            <div><span class="eyebrow">PRODUCT MODULES</span><h2 id="modules-title">一个入口，连接不同赛事工作</h2></div>
+            <p>每项核心能力都有自己的独立页面和网址。现在可以直接使用比赛记分，其他模块会随着开发逐步开放。</p>
+          </div>
+          <div class="module-grid">
+            <a class="module-card module-ready" href="record/">
+              <div class="module-card-top"><span>01</span><i>已开放</i></div>
+              <div><small>MATCH SCORING</small><h3>比赛记分</h3><p>完成规则选择、赛前信息、轮次登记、临场事件记录和赛后导出。</p></div>
+              <strong>进入功能 →</strong>
+            </a>
+            <a class="module-card" href="tournaments/">
+              <div class="module-card-top"><span>02</span><i>规划中</i></div>
+              <div><small>TOURNAMENTS</small><h3>赛事管理</h3><p>创建赛事、编排赛程、管理参赛队伍，并汇总每一场比赛结果。</p></div>
+              <strong>查看规划 →</strong>
+            </a>
+            <article class="module-card module-muted">
+              <div class="module-card-top"><span>03</span><i>未来模块</i></div>
+              <div><small>TEAM HUB</small><h3>球队与成员</h3><p>沉淀球队名单、角色权限和历史参赛信息，减少重复录入。</p></div>
+              <strong>后续开放</strong>
+            </article>
+            <article class="module-card module-muted">
+              <div class="module-card-top"><span>04</span><i>未来模块</i></div>
+              <div><small>COLLABORATION</small><h3>多人协作</h3><p>让组织者、记录员和裁判在不同设备上共同查看与管理赛事。</p></div>
+              <strong>后续开放</strong>
+            </article>
+          </div>
+        </section>
+
+        <section class="home-section audience-section" id="audiences" aria-labelledby="audiences-title">
+          <div class="audience-copy">
+            <span class="eyebrow">BUILT FOR THE COURT</span>
+            <h2 id="audiences-title">为真正组织和记录比赛的人设计</h2>
+            <p>不要求专业运维团队，也不把复杂系统强加给一场普通比赛。打开对应功能页，就能按清晰流程开始工作。</p>
+            <a class="text-link-button" href="record/">从第一场比赛开始 <span>↗</span></a>
+          </div>
+          <div class="audience-list">
+            <article><span>01</span><div><h3>高校与校园赛事</h3><p>院系杯、校赛、社团联赛及学生裁判实践。</p></div></article>
+            <article><span>02</span><div><h3>业余俱乐部与球队</h3><p>训练赛、友谊赛和地区交流赛的规范记录。</p></div></article>
+            <article><span>03</span><div><h3>记录员与裁判团队</h3><p>减少纸笔重复填写，统一操作顺序和赛后材料。</p></div></article>
+            <article><span>04</span><div><h3>中小型赛事组织者</h3><p>从单场记分起步，未来衔接赛程、成员与公开赛事页。</p></div></article>
+          </div>
+        </section>
+
+        <section class="roadmap-band" aria-label="产品发展方向">
+          <div><span class="eyebrow">ONE SITE · MULTIPLE TOOLS</span><h2>不是把所有功能挤在一页，而是让每项工作拥有自己的空间。</h2></div>
+          <div class="roadmap-items">
+            <span><i>现在</i>独立比赛记分页</span><span><i>下一步</i>赛事创建与赛程管理</span><span><i>未来</i>账号、权限与多设备协作</span>
+          </div>
+        </section>
+
+        <footer class="home-footer">
+          <span>© Volley Record</span><p>先服务好每一场真实比赛，再连接完整赛事。</p><a href="record/">进入比赛记分 →</a>
+        </footer>
+      </main>
     </div>
-
-    <div id="modal-root"></div>
-    <div id="toast-root" aria-live="assertive"></div>
-
-    <template id="landing-template">
-      <section class="landing page-enter">
-        <div class="hero-copy">
-          <span class="eyebrow">MATCH OPERATIONS · 01</span>
-          <h1>把每一次得分，<br />变成一份准确的比赛记录。</h1>
-          <p>选择规则版本，完成赛前名单与轮次表。比赛中只需操作加分、暂停和换人，系统会按记录表规则自动完成轮转、发球轮次与赛后汇总。</p>
-        </div>
-
-        <div class="rule-panel">
-          <div class="section-heading">
-            <div>
-              <span class="step-kicker">STEP 1 / 4</span>
-              <h2>选择比赛规则</h2>
-            </div>
-            <span class="required-note">必选</span>
-          </div>
-
-          <div class="rule-options">
-            <button class="rule-card selected" type="button" data-profile="official">
-              <span class="rule-radio"><i></i></span>
-              <span class="rule-card-copy">
-                <span class="card-line"><strong>FIVB 2025–2028 正式规则</strong><em>推荐</em></span>
-                <span class="edition">当前全球通用的正式室内排球规则</span>
-                <span class="rule-facts">
-                  <b>25</b> 分制 · 决胜局 <b>15</b> 分 · 暂停 <b>2</b> 次 · 换人 <b>6</b> 次
-                </span>
-              </span>
-              <span class="arrow">↗</span>
-            </button>
-
-            <button class="rule-card" type="button" data-profile="test2026">
-              <span class="rule-radio"><i></i></span>
-              <span class="rule-card-copy">
-                <span class="card-line"><strong>FIVB 2026 指定赛事试行</strong><em class="neutral">试行</em></span>
-                <span class="edition">VNL、U17 世锦赛和洲际锦标赛等指定赛事</span>
-                <span class="rule-facts">
-                  保持正式计分框架 · 每队每局换人上限调整为 <b>8</b> 次
-                </span>
-              </span>
-              <span class="arrow">↗</span>
-            </button>
-          </div>
-
-          <div class="rule-note" id="rule-note">
-            <span>i</span>
-            <p><strong>规则说明</strong>　2026 年“每局 8 次换人”等调整目前只适用于国际排联指定测试赛事；普通比赛应选择 2025–2028 正式基线。</p>
-          </div>
-
-          <div class="landing-actions">
-            <div class="landing-secondary-actions">
-              <button class="text-button" id="contact-developer" type="button">联系与反馈</button>
-              <button class="text-button" id="load-demo" type="button">载入样例比赛</button>
-            </div>
-            <button class="primary-button" id="start-setup" type="button">填写比赛信息 <span>→</span></button>
-          </div>
-        </div>
-      </section>
-    </template>
-
-    <template id="setup-template">
-      <section class="setup-layout page-enter">
-        <aside class="setup-aside">
-          <span class="eyebrow">PRE-MATCH</span>
-          <h1>赛前信息</h1>
-          <p>这些信息将自动进入电子记录表，开始比赛后仍可查看，但首发轮次的修改会按换人处理。</p>
-          <nav class="setup-progress" aria-label="赛前设置步骤">
-            <button data-step="1"><span>01</span><b>比赛信息</b><small>时间、场地与赛制</small></button>
-            <button data-step="2"><span>02</span><b>球队名单</b><small>号码、姓名与教练</small></button>
-            <button data-step="3"><span>03</span><b>裁判组</b><small>裁判员与记录员</small></button>
-            <button data-step="4"><span>04</span><b>第一局轮次</b><small>I–VI 与首次发球</small></button>
-          </nav>
-        </aside>
-        <div class="setup-main">
-          <form id="setup-form"></form>
-        </div>
-      </section>
-    </template>
-
-    <template id="score-template">
-      <section class="score-page page-enter">
-        <div id="score-content"></div>
-      </section>
-    </template>
-
-    <script type="module" src="app.js"></script>
   </body>
 </html>

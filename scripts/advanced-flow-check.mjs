@@ -2,7 +2,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { launchBrowser } from "./_browser.mjs";
 
-const baseUrl = process.env.VOLLEY_URL || "http://127.0.0.1:4173/";
+const baseUrl = process.env.VOLLEY_URL || "http://127.0.0.1:4173/record/";
 const exportPath = resolve("tmp/advanced-flow-export.json");
 await mkdir(resolve("tmp"), { recursive: true });
 
