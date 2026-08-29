@@ -1,17 +1,12 @@
-import { createRequire } from "node:module";
 import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { launchBrowser } from "./_browser.mjs";
 
-const require = createRequire(import.meta.url);
-const { chromium } = require("C:/Users/23183/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright");
 const baseUrl = process.env.VOLLEY_URL || "http://127.0.0.1:4173/";
 const outputPath = resolve(process.argv[2] || "output/pdf/volleyball-match-record-sample.pdf");
 await mkdir(dirname(outputPath), { recursive: true });
 
-const browser = await chromium.launch({
-  headless: true,
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe"
-});
+const browser = await launchBrowser();
 
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });

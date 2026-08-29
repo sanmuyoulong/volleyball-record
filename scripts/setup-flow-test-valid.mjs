@@ -1,8 +1,6 @@
-import { createRequire } from "node:module";
+import { launchBrowser } from "./_browser.mjs";
 
-const require = createRequire(import.meta.url);
-const { chromium } = require("C:/Users/23183/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright");
-const browser = await chromium.launch({ headless: true, executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe" });
+const browser = await launchBrowser();
 
 try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });

@@ -1,8 +1,6 @@
-import { createRequire } from "node:module";
 import { deflateRawSync } from "node:zlib";
+import { launchBrowser } from "./_browser.mjs";
 
-const require = createRequire(import.meta.url);
-const { chromium } = require("C:/Users/23183/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright");
 const baseUrl = process.env.VOLLEY_URL || "http://127.0.0.1:4173/";
 
 const u16 = value => [value & 255, (value >>> 8) & 255];
@@ -42,7 +40,7 @@ function rosterXlsx() {
 }
 
 const csv = "\uFEFF队伍名称,主教练,队长号码,号码,队员姓名,自由人\r\n" + Array.from({ length: 7 }, (_, index) => `海风队,秦教练,1,${index + 1},海风${index + 1},${index === 6 ? "是" : ""}`).join("\r\n");
-const browser = await chromium.launch({ headless: true, executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe" });
+const browser = await launchBrowser();
 
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
