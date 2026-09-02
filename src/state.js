@@ -13,9 +13,12 @@ import {
   setTarget,
   validateLineup
 } from "./rules.js";
+import { resultFromMatch } from "./tournament-rules.js";
 
 export const STORAGE_KEY = "volley-record-state-v1";
 export const SNAPSHOT_KEY = "volley-record-recovery-v1";
+export const TOURNAMENTS_KEY = "volley-record-tournaments-v1";
+export const ACTIVE_MATCH_KEY = "volley-record-active-match-v1";
 export const CONTACT_EMAIL = "2318390047@qq.com";
 export const roman = ["I", "II", "III", "IV", "V", "VI"];
 
@@ -30,6 +33,8 @@ export function initialState() {
     screen: "record",
     selectedRule: "modern",
     setupStep: 1,
+    tournamentId: null,
+    matchId: null,
     competitionProfile: "official",
     meta: {
       competition: "",
@@ -104,6 +109,7 @@ export function replaceState(nextState) {
 
 export function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  syncActiveMatch();
   const label = document.querySelector("#save-label");
   if (label) label.textContent = `已保存 ${formatClock()}`;
 }
@@ -136,6 +142,107 @@ export function saveRecoverySnapshot(label, force = false) {
     snapshots.unshift({ id: `${now}`, at: new Date().toISOString(), label, state: clone(state) });
     localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshots.slice(0, 5)));
   } catch {}
+}
+
+// 赛事与比赛归档层。
+// STORAGE_KEY 始终代表"当前正在记录的一场"，现有记分逻辑不感知赛事的存在；
+// 赛事索引只保存摘要，每场比赛的完整数据按 matchId 归档到独立键，切换比赛时通过活动槽载入。
+export function tournaments() {
+  try { return JSON.parse(localStorage.getItem(TOURNAMENTS_KEY)) || []; } catch { return []; }
+}
+
+export function saveTournaments(list) {
+  try { localStorage.setItem(TOURNAMENTS_KEY, JSON.stringify(list)); return true; } catch { return false; }
+}
+
+// 赛事默认赛制：单循环。分组循环+淘汰 / 单淘汰在设置界面覆盖。
+export function defaultFormat() {
+  return { type: "single-round-robin", groups: 2, advancePerGroup: 1, thirdPlace: false };
+}
+
+export function matchKey(matchId) {
+  return `volley-record-match-${matchId}`;
+}
+
+export function readMatch(matchId) {
+  if (!matchId) return null;
+  try { return JSON.parse(localStorage.getItem(matchKey(matchId))); } catch { return null; }
+}
+
+export function writeMatch(matchId, data) {
+  if (!matchId) return false;
+  try { localStorage.setItem(matchKey(matchId), JSON.stringify(data)); return true; } catch { return false; }
+}
+
+export function deleteMatch(matchId) {
+  if (!matchId) return;
+  try { localStorage.removeItem(matchKey(matchId)); } catch {}
+}
+
+export function activeMatch() {
+  try { return JSON.parse(localStorage.getItem(ACTIVE_MATCH_KEY)); } catch { return null; }
+}
+
+export function setActiveMatch(matchId, tournamentId = null) {
+  try {
+    if (!matchId) localStorage.removeItem(ACTIVE_MATCH_KEY);
+    else localStorage.setItem(ACTIVE_MATCH_KEY, JSON.stringify({ matchId, tournamentId }));
+  } catch {}
+}
+
+export function newId(prefix) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export function matchSummary(source = state) {
+  const teamNames = (source.teams || []).map(team => team.name || "待填写");
+  const match = source.match;
+  let status = "待开始";
+  let scoreText = "尚未开始";
+  if (match) {
+    const sets = match.sets || [];
+    const wins = [0, 0];
+    sets.forEach(set => { if (set.ended && set.winner != null) wins[set.winner] += 1; });
+    const current = sets[match.currentSetIndex];
+    scoreText = `局分 ${wins[0]} : ${wins[1]}`;
+    if (current && !current.ended) scoreText += ` · 本局 ${current.score[0]} : ${current.score[1]}`;
+    const setsToWin = match.setsToWin || Math.floor((match.maxSets || 5) / 2) + 1;
+    status = isMatchComplete(wins, setsToWin) ? "已结束" : "进行中";
+  } else if (source.screen === "setup") {
+    status = "填写赛前信息";
+  }
+  return {
+    id: source.matchId,
+    teamA: teamNames[0] || "待填写",
+    teamB: teamNames[1] || "待填写",
+    scoreText,
+    status,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+// 每次保存都把当前比赛写回归档，并刷新所属赛事里的摘要。
+// 没有 matchId 表示这是一场独立比赛（不归属任何赛事），直接跳过。
+export function syncActiveMatch() {
+  if (!state.matchId) return;
+  const active = activeMatch();
+  writeMatch(state.matchId, state);
+  if (!active?.tournamentId) return;
+  const list = tournaments();
+  const tournament = list.find(item => item.id === active.tournamentId);
+  if (!tournament) return;
+  tournament.matches = Array.isArray(tournament.matches) ? tournament.matches : [];
+  const summary = matchSummary(state);
+  summary.result = resultFromMatch(state);
+  const index = tournament.matches.findIndex(item => item.id === state.matchId);
+  if (index >= 0) tournament.matches[index] = { ...tournament.matches[index], ...summary };
+  else tournament.matches.push(summary);
+  // 若这场比赛属于赛程中的某个 fixture，把赛果回填，对阵图/积分表才能实时更新。
+  if (Array.isArray(tournament.schedule)) {
+    const fx = tournament.schedule.find(item => item.matchId === state.matchId);
+    if (fx) fx.result = resultFromMatch(state);
+  }
+  saveTournaments(list);
 }
 
 export function currentSet() {

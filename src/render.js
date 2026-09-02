@@ -33,7 +33,8 @@ import {
   roman,
   defaultRoster,
   CONTACT_EMAIL,
-  replaceState
+  replaceState,
+  setActiveMatch
 } from "./state.js";
 import { latestReversibleAction, reverseLatestAction, recordAuditAction } from "./audit.js";
 import { app, modalRoot, escapeHTML, toast, showValidation, safeFilename } from "./ui.js";
@@ -333,7 +334,13 @@ export function openDataManager() {
       if (!imported?.meta || !Array.isArray(imported.teams) || imported.teams.length !== 2) throw new Error("文件不包含有效的 Volley Record 比赛数据。");
       if (!confirm("从 JSON 恢复会替换当前页面中的比赛数据，是否继续？")) return;
       saveRecoverySnapshot("JSON 导入前自动备份", true);
-      replaceState(normalizeState(imported));
+      const restored = normalizeState(imported);
+      // 导入的 JSON 可能来自另一台设备或另一场比赛，断开它原有的赛事归属，
+      // 避免这份数据被写回别人那场比赛的归档。
+      restored.matchId = null;
+      restored.tournamentId = null;
+      replaceState(restored);
+      setActiveMatch(null);
       modalRoot.replaceChildren();
       render();
       toast("比赛数据已从 JSON 恢复。 ");
