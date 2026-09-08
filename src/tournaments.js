@@ -10,7 +10,8 @@ import {
   newId,
   writeMatch,
   deleteMatch,
-  setActiveMatch
+  setActiveMatch,
+  GENDERS
 } from "./state.js";
 import { escapeHTML, toast, confirmDialog } from "./ui.js";
 import { computeStandings } from "./tournament-rules.js";
@@ -291,7 +292,7 @@ function renderDetail(tournament) {
 }
 
 function seedRoster() {
-  return Array.from({ length: 6 }, () => ({ number: "", name: "", libero: false }));
+  return Array.from({ length: 6 }, () => ({ number: "", name: "", libero: false, gender: "男" }));
 }
 
 function playerRowHTML(teamId, player, index) {
@@ -299,6 +300,7 @@ function playerRowHTML(teamId, player, index) {
     <div class="tn-player-row" data-player-index="${index}">
       <input class="tn-player-number" data-team-id="${escapeHTML(teamId)}" data-player-index="${index}" value="${escapeHTML(player.number)}" placeholder="号" inputmode="numeric" autocomplete="off" />
       <input class="tn-player-name" data-team-id="${escapeHTML(teamId)}" data-player-index="${index}" value="${escapeHTML(player.name)}" placeholder="姓名" autocomplete="off" />
+      <select class="tn-player-gender" data-team-id="${escapeHTML(teamId)}" data-player-index="${index}" aria-label="球员性别">${GENDERS.map(value => `<option ${(player.gender || "男") === value ? "selected" : ""}>${value}</option>`).join("")}</select>
       <label class="tn-libero"><input type="checkbox" data-team-id="${escapeHTML(teamId)}" data-player-index="${index}" ${player.libero ? "checked" : ""} /> 自由人</label>
       <button class="ghost-button compact" type="button" data-remove-player="${escapeHTML(teamId)}" data-player-index="${index}">×</button>
     </div>`;
@@ -374,7 +376,8 @@ function readFormatTeamsFromUI(tournament) {
       const number = p.querySelector(".tn-player-number").value.trim();
       const pname = p.querySelector(".tn-player-name").value.trim();
       const libero = p.querySelector(".tn-libero input")?.checked || false;
-      roster.push({ number, name: pname, libero });
+      const gender = p.querySelector(".tn-player-gender")?.value || "男";
+      roster.push({ number, name: pname, libero, gender });
     });
     teams.push({ id, name, group, coach: "", captain: "", roster });
   });
@@ -423,7 +426,7 @@ function addPlayer(tournamentId, teamId) {
   if (!t) return;
   const { teams } = readFormatTeamsFromUI(t);
   const team = teams.find(x => x.id === teamId);
-  if (team) team.roster = (team.roster || []).concat({ number: "", name: "", libero: false });
+  if (team) team.roster = (team.roster || []).concat({ number: "", name: "", libero: false, gender: "男" });
   t.teams = teams;
   const list = tournaments().map(x => (x.id === tournamentId ? t : x));
   saveTournaments(list);

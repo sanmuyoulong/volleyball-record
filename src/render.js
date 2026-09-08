@@ -32,6 +32,9 @@ import {
   saveState,
   roman,
   defaultRoster,
+  isMixedGender,
+  playerGender,
+  GENDERS,
   CONTACT_EMAIL,
   replaceState,
   setActiveMatch
@@ -150,9 +153,10 @@ export function matchInfoForm() {
 }
 
 export function teamForm() {
+  const mixed = isMixedGender();
   return `
-    ${setupHeading("球队名单", "号码在同一队内必须唯一；L 表示自由人。", 2)}
-    <div class="roster-import-note"><span>Excel / CSV</span><p>可分别为 A、B 队导入名单。支持第一工作表中的“号码、姓名、自由人、队长、队伍名称、主教练”等列。</p><button class="text-button" type="button" data-action="download-roster-template">下载 CSV 模板</button></div>
+    ${setupHeading("球队名单", mixed ? "混合比赛请为每名队员选择性别；号码在同一队内必须唯一；L 表示自由人。" : "号码在同一队内必须唯一；L 表示自由人。", 2)}
+    <div class="roster-import-note"><span>Excel / CSV</span><p>可分别为 A、B 队导入名单。支持第一工作表中的“号码、姓名${mixed ? "、性别" : ""}、自由人、队长、队伍名称、主教练”等列。</p><button class="text-button" type="button" data-action="download-roster-template">下载 CSV 模板</button></div>
     <div class="team-editor-grid">
       ${state.teams.map((team, teamIndex) => teamEditor(team, teamIndex)).join("")}
     </div>
@@ -160,16 +164,18 @@ export function teamForm() {
 }
 
 export function teamEditor(team, teamIndex) {
+  const mixed = isMixedGender();
   return `
     <section class="team-editor">
       <div class="team-editor-head"><span class="team-letter">${teamIndex === 0 ? "A" : "B"}</span><input name="team-name-${teamIndex}" value="${escapeHTML(team.name)}" placeholder="队伍名称" aria-label="${teamIndex === 0 ? "A" : "B"}队名称" /><button class="ghost-button compact" type="button" data-action="import-roster" data-team="${teamIndex}">导入名单</button></div>
-      <div class="roster-head"><span>号码</span><span>队员姓名</span><span>自由人</span></div>
+      <div class="roster-head ${mixed ? "with-gender" : ""}"><span>号码</span><span>队员姓名</span><span>自由人</span>${mixed ? "<span>性别</span>" : ""}</div>
       <div class="roster-list">
         ${team.roster.map((player, playerIndex) => `
-          <div class="roster-row">
+          <div class="roster-row ${mixed ? "with-gender" : ""}">
             <input name="player-number-${teamIndex}-${playerIndex}" value="${escapeHTML(player.number)}" inputmode="numeric" aria-label="球员号码" />
             <input name="player-name-${teamIndex}-${playerIndex}" value="${escapeHTML(player.name)}" aria-label="球员姓名" />
             <label><input name="player-libero-${teamIndex}-${playerIndex}" type="checkbox" ${player.libero ? "checked" : ""} /> L</label>
+            ${mixed ? `<select name="player-gender-${teamIndex}-${playerIndex}" aria-label="球员性别">${GENDERS.map(value => `<option ${player.gender === value ? "selected" : ""}>${value}</option>`).join("")}</select>` : ""}
           </div>`).join("")}
       </div>
       <div class="team-footer-fields">
@@ -265,11 +271,14 @@ export function bindSetupActions() {
 }
 
 export function downloadRosterTemplate() {
-  const csv = "\uFEFF队伍名称,主教练,队长号码,号码,队员姓名,自由人,队长\r\n示例队,教练姓名,8,1,队员姓名,,\r\n示例队,教练姓名,8,8,队长姓名,,是\r\n示例队,教练姓名,8,14,自由人姓名,是,";
+  // 混合比赛的模板带“性别”列并给出男女示例；男子/女子比赛不需要逐人填写，保持原模板。
+  const csv = isMixedGender()
+    ? "\uFEFF队伍名称,主教练,队长号码,号码,队员姓名,性别,自由人,队长\r\n示例队,教练姓名,8,1,队员姓名,男,,\r\n示例队,教练姓名,8,8,队长姓名,女,,是\r\n示例队,教练姓名,8,14,自由人姓名,女,是,"
+    : "\uFEFF队伍名称,主教练,队长号码,号码,队员姓名,自由人,队长\r\n示例队,教练姓名,8,1,队员姓名,,\r\n示例队,教练姓名,8,8,队长姓名,,是\r\n示例队,教练姓名,8,14,自由人姓名,是,";
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = "排球球队名单导入模板.csv";
+  link.download = isMixedGender() ? "排球球队名单导入模板（混合）.csv" : "排球球队名单导入模板.csv";
   document.body.append(link);
   link.click();
   link.remove();
@@ -277,7 +286,9 @@ export function downloadRosterTemplate() {
 }
 
 export function rosterImportPreviewHTML(result) {
-  return `<section class="import-preview"><div class="import-summary"><div><small>有效队员</small><strong>${result.players.length}</strong></div><div><small>自由人</small><strong>${result.players.filter(player => player.libero).length}</strong></div><div><small>队长</small><strong>${escapeHTML(result.captain || "待填写")}</strong></div></div>${result.warnings.length ? `<div class="import-warnings">${result.warnings.map(message => `<p>${escapeHTML(message)}</p>`).join("")}</div>` : ""}<div class="import-table"><b>号码</b><b>队员姓名</b><b>身份</b>${result.players.map(player => `<span>${escapeHTML(player.number)}</span><span>${escapeHTML(player.name)}</span><span>${player.number === result.captain ? "C" : ""}${player.libero ? `${player.number === result.captain ? " · " : ""}L` : ""}</span>`).join("")}</div></section>`;
+  const mixed = isMixedGender();
+  const females = result.players.filter(player => player.gender === "女").length;
+  return `<section class="import-preview"><div class="import-summary"><div><small>有效队员</small><strong>${result.players.length}</strong></div><div><small>自由人</small><strong>${result.players.filter(player => player.libero).length}</strong></div>${mixed ? `<div><small>男 / 女</small><strong>${result.players.length - females} / ${females}</strong></div>` : ""}<div><small>队长</small><strong>${escapeHTML(result.captain || "待填写")}</strong></div></div>${result.warnings.length ? `<div class="import-warnings">${result.warnings.map(message => `<p>${escapeHTML(message)}</p>`).join("")}</div>` : ""}<div class="import-table ${mixed ? "with-gender" : ""}"><b>号码</b><b>队员姓名</b>${mixed ? "<b>性别</b>" : ""}<b>身份</b>${result.players.map(player => `<span>${escapeHTML(player.number)}</span><span>${escapeHTML(player.name)}</span>${mixed ? `<span>${escapeHTML(player.gender || "—")}</span>` : ""}<span>${player.number === result.captain ? "C" : ""}${player.libero ? `${player.number === result.captain ? " · " : ""}L` : ""}</span>`).join("")}</div></section>`;
 }
 
 export function openRosterImportModal(teamIndex) {
@@ -419,7 +430,10 @@ export function scoreboardHTML(set) {
 export function teamScoreHTML(teamIndex, set) {
   const server = set.servingTeam === teamIndex && !set.ended;
   const scoreFirst = teamIndex === 1;
-  const info = `<div class="team-score-info"><small>TEAM ${teamIndex === 0 ? "A" : "B"}</small><h2>${escapeHTML(state.teams[teamIndex].name)}</h2><span class="sets-won">已胜 ${state.match.setsWon[teamIndex]} / ${state.match.setsToWin} 局</span>${server ? `<span class="server-dot">${escapeHTML(servicePlayer(set.onCourt[teamIndex], set.rotationIndex[teamIndex]))} 号发球</span>` : ""}</div>`;
+  const onCourtPlayers = set.onCourt[teamIndex].map(number => state.teams[teamIndex].roster.find(player => player.number === String(number))).filter(Boolean);
+  // 混合比赛在记分板上实时给出场上男女人数，便于核对阵容是否符合组别要求。
+  const genderChip = isMixedGender() ? `<span class="gender-chip">场上 ${genderCountText(onCourtPlayers)}</span>` : "";
+  const info = `<div class="team-score-info"><small>TEAM ${teamIndex === 0 ? "A" : "B"}</small><h2>${escapeHTML(state.teams[teamIndex].name)}</h2><span class="sets-won">已胜 ${state.match.setsWon[teamIndex]} / ${state.match.setsToWin} 局</span>${genderChip}${server ? `<span class="server-dot">${escapeHTML(servicePlayer(set.onCourt[teamIndex], set.rotationIndex[teamIndex]))} 号发球</span>` : ""}</div>`;
   const score = `<strong class="big-score">${set.score[teamIndex]}</strong>`;
   return `<div class="team-score">${scoreFirst ? score + info : info + score}</div>`;
 }
@@ -488,6 +502,7 @@ export function sheetHTML(set, printMode = false) {
         <div><b>日期</b>${escapeHTML(state.meta.date)}</div>
         <div><b>场次</b>${escapeHTML(state.meta.matchNo || "—")}</div>
         <div><b>赛制</b>${matchFormatLabel()}</div>
+        <div><b>性别</b>${escapeHTML(state.meta.gender || "—")}</div>
         <div><b>局时</b>${escapeHTML(set.startTime)} – ${escapeHTML(set.endTime || "进行中")}</div>
       </div>
       ${sheetPersonnelHTML(set)}
@@ -509,16 +524,31 @@ export function sanctionControlHTML(set) {
   return `<section class="sanction-control"><h4>判罚与延误 / SANCTIONS</h4>${set.sanctions.length ? `<div class="sanction-table"><b>队伍</b><b>成员</b><b>判罚</b><b>比分</b>${set.sanctions.map(item => `<span>${item.teamIndex === 0 ? "A" : "B"}</span><span>${escapeHTML(item.target)}</span><span>${escapeHTML(item.label)} · ${escapeHTML(item.card)}</span><span>${escapeHTML(item.scoreBefore)}${item.pointAwarded ? ` → ${escapeHTML(item.scoreAfter)}` : ""}</span>`).join("")}</div>` : "<p>本局暂无判罚记录。</p>"}</section>`;
 }
 
+// 混合比赛用：把一组队员按性别统计成“男 x · 女 y”，有漏填时补“未填 z”。
+export function genderCountText(players) {
+  const males = players.filter(player => playerGender(player) === "男").length;
+  const females = players.filter(player => playerGender(player) === "女").length;
+  const unknown = players.length - males - females;
+  return `男 ${males} · 女 ${females}${unknown ? ` · 未填 ${unknown}` : ""}`;
+}
+
+export function genderBadge(gender) {
+  if (gender === "女") return ' <em class="g-female">女</em>';
+  if (gender === "男") return ' <em class="g-male">男</em>';
+  return "";
+}
+
 export function sheetPersonnelHTML(set) {
+  const mixed = isMixedGender();
   return `<section class="sheet-personnel">
     <div class="sheet-section-label">双方名单 · 教练员 · 第 ${set.number} 局轮次表</div>
     <div class="sheet-team-details">
       ${state.teams.map((team, teamIndex) => {
         const players = team.roster.filter(player => player.number && player.name);
         return `<article class="sheet-roster-card">
-          <div class="sheet-roster-head"><span>${teamIndex === 0 ? "A" : "B"}</span><strong>${escapeHTML(team.name)}</strong><small><b>主教练</b> ${escapeHTML(team.coach || "—")}</small></div>
+          <div class="sheet-roster-head ${mixed ? "with-gender" : ""}"><span>${teamIndex === 0 ? "A" : "B"}</span><strong>${escapeHTML(team.name)}</strong><small><b>主教练</b> ${escapeHTML(team.coach || "—")}</small>${mixed ? `<em class="gender-mix">${genderCountText(players)}</em>` : ""}</div>
           <div class="sheet-lineup-summary">${roman.map((position, index) => `<span><b>${position}</b>${escapeHTML(set.lineups[teamIndex][index])}</span>`).join("")}</div>
-          <div class="sheet-roster-grid">${players.map(player => `<span class="sheet-player"><b>${escapeHTML(player.number)}</b>${escapeHTML(player.name)}${player.number === team.captain ? " <i>C</i>" : ""}${isLiberoNumber(teamIndex, player.number) ? " <i>L</i>" : ""}</span>`).join("")}</div>
+          <div class="sheet-roster-grid">${players.map(player => `<span class="sheet-player"><b>${escapeHTML(player.number)}</b>${escapeHTML(player.name)}${player.number === team.captain ? " <i>C</i>" : ""}${isLiberoNumber(teamIndex, player.number) ? " <i>L</i>" : ""}${mixed ? genderBadge(playerGender(player)) : ""}</span>`).join("")}</div>
         </article>`;
       }).join("")}
     </div>

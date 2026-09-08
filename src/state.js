@@ -22,8 +22,27 @@ export const ACTIVE_MATCH_KEY = "volley-record-active-match-v1";
 export const CONTACT_EMAIL = "2318390047@qq.com";
 export const roman = ["I", "II", "III", "IV", "V", "VI"];
 
+export const GENDERS = ["男", "女"];
+
+// 队员性别只在混合比赛中需要逐人填写；男子/女子比赛整队一致，由比赛性别推导。
+export function isMixedGender() {
+  return state.meta?.gender === "混合";
+}
+
+export function genderFromMatch() {
+  if (state.meta?.gender === "女子") return "女";
+  if (state.meta?.gender === "男子") return "男";
+  return "";
+}
+
+// 读取名单里的性别：混合比赛以本人填写为准（未填返回空，由 UI 提示补充），其余按比赛性别统一。
+export function playerGender(player) {
+  if (!isMixedGender()) return genderFromMatch();
+  return GENDERS.includes(player?.gender) ? player.gender : "";
+}
+
 export function defaultRoster() {
-  return Array.from({ length: 14 }, () => ({ number: "", name: "", libero: false }));
+  return Array.from({ length: 14 }, () => ({ number: "", name: "", libero: false, gender: "" }));
 }
 
 export function initialState() {
@@ -80,6 +99,12 @@ export function normalizeState(saved) {
   restored.selectedRule = "modern";
   if (!["record", "setup", "score"].includes(restored.screen)) restored.screen = "record";
   if (!["official", "test2026"].includes(restored.competitionProfile)) restored.competitionProfile = "official";
+  // 旧存档的队员没有 gender 字段，这里补齐，混合比赛选人时才有值可用。
+  restored.teams = [0, 1].map(index => {
+    const savedTeam = Array.isArray(saved.teams) ? saved.teams[index] : null;
+    const roster = Array.isArray(savedTeam?.roster) && savedTeam.roster.length ? savedTeam.roster : base.teams[index].roster;
+    return { ...base.teams[index], ...(savedTeam || {}), roster: roster.map(player => ({ number: "", name: "", libero: false, gender: "", ...player })) };
+  });
   restored.meta.matchFormat = ["3", "5"].includes(String(restored.meta.matchFormat)) ? String(restored.meta.matchFormat) : "5";
   if (restored.match) {
     restored.match.maxSets = Number(restored.match.maxSets || restored.meta.matchFormat || 5);

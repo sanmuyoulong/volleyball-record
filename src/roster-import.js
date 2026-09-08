@@ -5,7 +5,13 @@ const HEADER_ALIASES = {
   captain: ["队长", "是否队长", "captain", "c"],
   captainNumber: ["队长号码", "captainnumber", "captainno"],
   teamName: ["队伍名称", "球队名称", "队名", "team", "teamname"],
-  coach: ["主教练", "教练", "coach"]
+  coach: ["主教练", "教练", "coach"],
+  gender: ["性别", "男女", "队员性别", "gender", "sex"]
+};
+
+const GENDER_MARKERS = {
+  女: ["女", "女子", "女性", "女队员", "f", "female", "woman", "w"],
+  男: ["男", "男子", "男性", "男队员", "m", "male", "man"]
 };
 
 function cleanHeader(value) {
@@ -15,6 +21,15 @@ function cleanHeader(value) {
 function headerIndex(headers, aliases) {
   const normalized = headers.map(cleanHeader);
   return normalized.findIndex(header => aliases.some(alias => cleanHeader(alias) === header));
+}
+
+// 把“男 / 男子 / M / male”这类写法统一成“男”，无法识别时返回空串（混合比赛会提示补充）。
+export function parseGender(value) {
+  const marker = cleanHeader(value);
+  if (!marker) return "";
+  if (GENDER_MARKERS.女.includes(marker)) return "女";
+  if (GENDER_MARKERS.男.includes(marker)) return "男";
+  return "";
 }
 
 function truthyMarker(value, kind) {
@@ -179,7 +194,7 @@ export function normalizeRosterRows(rows) {
     const name = valueAt(row, "name");
     if (!number && !name) return;
     if (!number || !name) throw new Error(`第 ${headerRowIndex + index + 2} 行的号码或姓名为空。`);
-    players.push({ number, name, libero: truthyMarker(valueAt(row, "libero"), "libero") });
+    players.push({ number, name, libero: truthyMarker(valueAt(row, "libero"), "libero"), gender: parseGender(valueAt(row, "gender")) });
     if (truthyMarker(valueAt(row, "captain"), "captain")) captainMarkers.push(number);
     teamName ||= valueAt(row, "teamName");
     coach ||= valueAt(row, "coach");
@@ -196,5 +211,6 @@ export function normalizeRosterRows(rows) {
   const warnings = [];
   if (!captain) warnings.push("文件中未指定队长，导入后请填写队长号码。");
   if (!teamName) warnings.push("文件中未填写队伍名称，将保留页面现有名称。");
+  if (columns.gender >= 0 && players.some(player => !player.gender)) warnings.push("部分队员未填写性别，导入后请在名单中补充。");
   return { players, teamName, coach, captain, warnings, headerRowIndex };
 }
