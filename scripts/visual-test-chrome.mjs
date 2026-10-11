@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { launchBrowser } from "./_browser.mjs";
 
-const baseUrl = process.env.VOLLEY_URL || "http://127.0.0.1:4173/";
+const baseUrl = process.env.VOLLEY_URL || "http://127.0.0.1:4173/record/?mode=score";
 const screenshotPath = resolve(process.argv[2] || "assets/sample-page.png");
 const browser = await launchBrowser();
 const errors = [];

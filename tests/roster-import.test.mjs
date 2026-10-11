@@ -17,9 +17,30 @@ test("名单归一化识别球队信息、队长和自由人", () => {
   assert.equal(result.players.at(-1).libero, true);
 });
 
+test("名单归一化解析性别列并识别中英文写法", () => {
+  const rows = parseDelimitedText("号码,姓名,性别\n1,甲,男\n2,乙,女\n3,丙,F\n4,丁,male\n5,戊,\n6,己,男子");
+  const result = normalizeRosterRows(rows);
+  assert.deepEqual(result.players.map(player => player.gender), ["男", "女", "女", "男", "", "男"]);
+  assert.ok(result.warnings.some(message => message.includes("性别")), "缺性别时应给出补充提示");
+});
+
+test("名单文件没有性别列时不产生性别提示", () => {
+  const rows = parseDelimitedText("号码,姓名\n1,甲\n2,乙\n3,丙\n4,丁\n5,戊\n6,己");
+  const result = normalizeRosterRows(rows);
+  assert.deepEqual(result.players.map(player => player.gender), ["", "", "", "", "", ""]);
+  assert.equal(result.warnings.some(message => message.includes("性别")), false);
+});
+
 test("名单归一化拒绝重复号码和超过两名自由人", () => {
   const duplicate = parseDelimitedText("号码,姓名\n1,甲\n1,乙\n2,丙\n3,丁\n4,戊\n5,己");
   assert.throws(() => normalizeRosterRows(duplicate), /重复号码/);
   const liberos = parseDelimitedText("号码,姓名,自由人\n1,甲,是\n2,乙,是\n3,丙,是\n4,丁,\n5,戊,\n6,己,");
   assert.throws(() => normalizeRosterRows(liberos), /自由人不能超过 2 名/);
+});
+
+test("技术统计可读取一人名单，原计分仍需至少六人", () => {
+  const rows = parseDelimitedText("号码,姓名\n7,张三");
+  assert.equal(normalizeRosterRows(rows, { minimumPlayers: 1 }).players.length, 1);
+  assert.throws(() => normalizeRosterRows(rows), /少于 6 人/);
+  assert.throws(() => normalizeRosterRows([["号码", "姓名"]], { minimumPlayers: 1 }), /至少填写 1 名/);
 });

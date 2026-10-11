@@ -27,6 +27,8 @@ import {
   liberoNeedsImmediateExit,
   matchSnapshot,
   saveRecoverySnapshot,
+  genderFromMatch,
+  isMixedGender,
   roman
 } from "./state.js";
 import { recordAuditAction, reverseLatestAction, latestReversibleAction } from "./audit.js";
@@ -371,8 +373,8 @@ export function applyDemoRosters() {
   const namesA = ["程野","陆骁","陈放","高桥","梁川","吴桐","韩序","沈舟","邵一","孟驰","许燃","唐越","季风","宋扬"];
   const namesB = ["顾北","裴安","程屿","苏秦","闻舟","江澄","贺朗","秦屿","林哲","周野","顾言","许川","沈言","白屿"];
   state.teams = [
-    { name: "海风俱乐部", coach: "秦牧", captain: "8", roster: namesA.map((name, index) => ({ number: String(index + 1), name, libero: [5, 9].includes(index) })) },
-    { name: "北辰体育", coach: "陆明", captain: "1", roster: namesB.map((name, index) => ({ number: String(index + 1), name, libero: [4, 13].includes(index) })) }
+    { name: "海风俱乐部", coach: "秦牧", captain: "8", roster: namesA.map((name, index) => ({ number: String(index + 1), name, libero: [5, 9].includes(index), gender: index % 3 === 2 ? "女" : "男" })) },
+    { name: "北辰体育", coach: "陆明", captain: "1", roster: namesB.map((name, index) => ({ number: String(index + 1), name, libero: [4, 13].includes(index), gender: index % 3 === 1 ? "女" : "男" })) }
   ];
 }
 
@@ -393,7 +395,9 @@ export function readSetupStep(validate) {
       team.roster = team.roster.map((player, playerIndex) => ({
         number: String(data.get(`player-number-${teamIndex}-${playerIndex}`) || "").trim(),
         name: String(data.get(`player-name-${teamIndex}-${playerIndex}`) || "").trim(),
-        libero: data.has(`player-libero-${teamIndex}-${playerIndex}`)
+        libero: data.has(`player-libero-${teamIndex}-${playerIndex}`),
+        // 混合比赛逐个读取下拉；男子/女子比赛没有这一列，按比赛性别统一写入。
+        gender: isMixedGender() ? String(data.get(`player-gender-${teamIndex}-${playerIndex}`) || "").trim() : genderFromMatch()
       }));
     });
     if (validate) {

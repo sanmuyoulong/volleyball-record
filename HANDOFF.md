@@ -1,7 +1,7 @@
 # Volley Record 项目交接文档
 
 > 文档日期：2026-08-29  
-> 当前基线提交：`6b6afd7`（`main` / `origin/main`）  
+> 当前基线：本次 GitHub 推送后的 `main`
 > 项目状态：可公开访问的前端原型，适合小规模试用，尚未按正式赛事生产系统标准验收
 
 ## 1. 项目概览
@@ -10,9 +10,10 @@ Volley Record 是一套排球电子记录与计分网站，目标是用数字化
 
 - GitHub：<https://github.com/sanmuyoulong/volleyball-record>
 - 生产网站：<https://volleyball-record.vercel.app/>
+- Sites 在线站点：<https://volley-record-oscar.berry-bread-6188.chatgpt.site/>
 - 联系邮箱：`2318390047@qq.com`
 - 当前仓库状态：按项目所有者要求使用私有仓库，未来可能公开和开源
-- 当前部署：Vercel Hobby，GitHub `main` 分支自动部署到生产环境
+- 当前部署：Vercel Hobby 通过 GitHub `main` 自动部署；Sites 为现有公开站点，持续同步发布，静态目录为 `dist/client`
 
 项目的定位目前仍是“可运行、可演示、可小规模试用的专业原型”，不应直接宣称为 FIVB 官方认证系统。
 
@@ -58,7 +59,7 @@ Volley Record 是一套排球电子记录与计分网站，目标是用数字化
 
 ## 3. 当前用户流程
 
-1. 首页选择规则配置。
+1. 从“比赛记录”入口选择计分，再选择规则配置；已有计分可继续记录。
 2. 填写比赛名称、日期、计划时间、场馆、场次编号和三局两胜/五局三胜。
 3. 填写或导入双方球队名称、号码、队员姓名、自由人、队长和主教练。
 4. 填写裁判员、记录员和司线员信息。
@@ -69,6 +70,18 @@ Volley Record 是一套排球电子记录与计分网站，目标是用数字化
 9. 导出完整比赛 JSON，或通过浏览器打印对话框保存完整比赛 PDF。
 
 首页另有“联系与反馈”入口，显示项目邮箱并通过 `mailto:` 唤起用户设备的默认邮件客户端。
+
+### 技术统计流程（2026-10-11 新增）
+
+性别选择显示“男子、女子、男女混合”，混合的内部值保留 `混合` 以兼容存档。队员字段 `gender` 保存 `男` / `女` / 空串；仅混合比赛要求已填写队员补全性别，旧混合表缺少性别时返回赛前页并保留已有计数。切换单性别会隐藏逐人选择而保留选择值。名单导入读取共享解析器的性别结果，缺少时按等价号码和姓名保留旧性别，新队员留空提示补填。表格将性别显示在姓名旁，保持 B6 的 22 列；备份、恢复、打印均保留。
+
+`/record/` 为两种记录的选择页，`?mode=score` 启动原有计分应用，`?mode=statistics` 启动独立 B6 技术统计应用，`?match=<id>` 保持赛事比赛的直接计分入口。`src/record-entry.js` 负责入口分流，计分核心未改动。
+
+技术统计先填写比赛名称、场序、主客队、统计队伍、性别、日期、城市、比赛馆与本队名单，保留原表 14 行。赛前页仅保留比赛信息与名单，不填写比赛结果或签名。进入表格后，发球、扣球、一传、拦网、防守各有三项可加减数据与一项自动总数，并额外显示全队合计。记录页的“填写比分”弹窗可随时更新五局主客队比分和胜队：进行中的局允许平分，勾选“本局已结束”后才计入比赛结果。比分与统计数据分别保存，返回修改赛前信息不会清空比分；签名通过记录页的“填写签名”弹窗补填，保存后同步进入表格、备份与打印。`completedSets` 保存各局是否结束，旧存档缺少该字段时，按原先只填写结束局的规则恢复总局分。手机横向滚动时固定姓名和号码，打印隐藏按钮并输出 A4 横向表。
+
+`src/statistics-state.js` 为纯数据与统计函数，`src/statistics.js` 负责表格、赛前表单、保存及备份。存储键为 `volley-record-statistics-v1`，不写入计分状态、恢复快照或赛事归档。每个浏览器保留一份当前技术统计，可通过独立 JSON 导出 / 导入留存历史。新建只清除当前技术统计；已开始计数后固定统计队伍，编辑名单时不能清空已有数据的队员。新增验证入口为 `npm run test:statistics`。
+
+队员名单支持 `.xlsx` / CSV 导入，复用 `src/roster-import.js`，技术统计以 `minimumPlayers: 1` 读取，计分默认仍需 6 人。赛前名单区提供 CSV 模板与预览确认；导入会更新所选主队或客队的队名。`prepareStatisticsRosterImport` 按等价号码匹配已计数队员，重排后深拷贝保留原数据；不允许删除已计数队员、用相同号码换成不同姓名或改成其他队伍。导入失败、取消或仅预览均不修改名单。共用 XLSX 读取器已修复工作簿存在时 `DOMParser` 在声明前被调用的问题。新增端到端检查为 `npm run test:statistics-import`，覆盖工作表顺序、共享字符串、CSV / XLSX、模板、重排恢复及手机布局。
 
 ## 4. 已实现功能
 
@@ -115,30 +128,50 @@ Volley Record 是一套排球电子记录与计分网站，目标是用数字化
 - 页面根节点在规则切换、赛前步骤切换和计分操作中保持稳定，入场动画只在真正切换页面时播放。
 - 桌面和移动端响应式布局。
 
+### 4.5 赛事管理（MVP）
+
+赛事管理为赛前组织与赛后归档闭环，独立于记分核心，记分逻辑对赛事完全无感知：
+
+- 创建赛事（名称、地点、开始日期、备注）。
+- 录入队伍：用「队伍数量」（2–32）一次生成对应数量的队伍行，再填写每队名称与分组（1–8 组）；在队伍行内同步录入该队名单（号码 / 姓名 / 自由人）。不再提供「赛制」下拉与自动排程。
+- 创建比赛：在赛事详情点「新建比赛」，弹窗选择主队与客队，双方名单一并带入记录页；进入比赛落在赛前设置向导（`screen="setup"`，两队已预填），无需手动建队。
+- 对阵图（bracket）功能已移除：不再按赛制自动生成 fixture / 对阵图。
+- 小组积分表：按排球规则排名（胜场 → 局胜率 → 小分胜率），按分组分表；无已记录比赛时显示提示文案。
+- 比赛记录回流：每场记分通过 `syncActiveMatch()` 把赛果写回所属赛事的比赛列表摘要（队名、`局分 x : y`、状态），积分表实时更新。
+- 删除：删除单场比赛（「比赛」列表里的删除按钮，应用内确认弹窗生效）会一并清理其归档；删除赛事会连带清理其下全部比赛归档。
+
+纯函数引擎位于 `src/tournament-rules.js`（`computeStandings` 积分计算、`resultFromMatch` 赛果推导），与 `rules.js` 同一定位，可独立单测；`generateSchedule` 赛程生成已随对阵图移除。
+
 ## 5. 技术架构
 
 项目是无框架、无打包器、无运行时第三方依赖的静态前端：
 
 | 文件 / 目录 | 职责 |
 | --- | --- |
-| `index.html` | 页面骨架、首页/赛前/计分页模板，引用 `./src/app.js` 与 `./styles.css` |
+| `index.html` | 平台介绍首页与功能导航，链接到各独立功能页 |
+| `record/index.html` | 比赛记分入口、赛前设置与计分页模板，引用 `../src/app.js` |
+| `tournaments/index.html` | 赛事管理独立栏目页（列表、创建、详情、赛制/队伍/对阵图/积分表），引用 `../src/tournaments.js` |
 | `styles.css` | 全部界面、响应式和打印样式（根目录） |
-| `src/` | 前端 ES 模块：`app.js` 引导入口；`state.js` 数据层；`audit.js` 审计；`ui.js` DOM 工具；`logic.js` 比赛业务 mutation；`render.js` 渲染与弹窗；`rules.js` 规则纯函数；`roster-import.js` 名单解析 |
+| `src/` | 前端 ES 模块：`app.js` 引导入口；`state.js` 数据层；`audit.js` 审计；`ui.js` DOM 工具；`logic.js` 比赛业务 mutation；`render.js` 渲染与弹窗；`rules.js` 规则纯函数；`roster-import.js` 名单解析；`tournament-rules.js` 赛事纯函数引擎（赛程/积分/赛果）；`tournaments.js` 赛事管理页面 |
 | `assets/` | 静态资源：`favicon.ico`、参考 PDF（记录表.pdf / 中文位置表.pdf）、示例截图 |
 | `server.mjs` | 本地静态文件服务器，默认端口 `4173` |
 | `tests/` | Node 单元测试（引用 `../src/rules.js`、`../src/roster-import.js`） |
 | `scripts/` | Chrome 端到端、视觉流程、PDF、名单导入和赛后确认检查 |
+| `.openai/hosting.json` / `scripts/build-sites.mjs` | Sites 项目标识与生产构建适配；`dist/` 为忽略的构建产物 |
 
 ### 5.1 目录布局与分层设计
 
-项目采用「根目录托管 + 源码/资源分层」结构，目的是为后续加功能、扩大项目规模建立清晰边界，同时不破坏「零依赖纯静态 + Vercel 根目录托管」的部署方式。
+项目采用「多页面入口 + 源码/资源分层」结构，目的是为后续增加独立功能模块建立清晰边界，同时保留零运行时依赖的静态前端特性。
 
 ```text
 volleyball-record/
-├── index.html            # 入口，引用 ./src/app.js 与 ./styles.css，补充 favicon 链接
+├── index.html            # 平台介绍首页与多功能导航
+├── record/index.html     # 独立比赛记分页面，引用 ../src/app.js
+├── tournaments/index.html # 赛事管理页面（列表与详情），引用 ../src/tournaments.js
 ├── styles.css            # 全部界面、响应式、打印样式
 ├── server.mjs            # 本地静态服务器，默认端口 4173
-├── package.json          # 仅脚本，无运行时依赖；测试依赖可放 devDependencies
+├── package.json          # 开发、测试与 Sites 生产构建脚本
+├── .openai/hosting.json  # Sites 项目标识
 ├── HANDOFF.md / README.md
 ├── src/                  # 前端 ES 模块（同目录相对引用 ./xxx.js）
 │   ├── app.js            # 引导入口：根节点监听 + 启动 render()
@@ -148,24 +181,26 @@ volleyball-record/
 │   ├── logic.js          # 业务：改变比赛事实的 mutation（得分/换人/制裁/轮转…）
 │   ├── render.js         # 渲染：三屏调度/模板/事件绑定/弹窗/导出
 │   ├── rules.js          # 规则纯函数（可独立测试）
-│   └── roster-import.js  # CSV/XLSX 名单解析
+│   ├── roster-import.js  # CSV/XLSX 名单解析
+│   └── tournaments.js    # 赛事管理页面：赛事列表/创建/详情与比赛增删
 ├── assets/               # 静态资源（favicon + 参考 PDF + 示例图）
 │   ├── favicon.ico
 │   ├── 记录表.pdf  中文位置表.pdf
 │   └── sample-page.png  rules-selection.png
 ├── tests/                # Node 单元测试，引用 ../src/rules.js、../src/roster-import.js
 ├── scripts/              # 浏览器端到端（_browser.mjs 统一启动，截图默认落 assets/）
-├── output/  tmp/         # 生成产物，已 gitignore
+├── dist/  output/  tmp/  # 构建/生成产物，已 gitignore
 └── .workbuddy/           # 本地记忆（绝不提交，见第 17 节维护原则）
 ```
 
 分层约束与迁移要点：
 
-1. 模块之间一律使用 `./xxx.js` 同目录相对引用，因此整批移入 `src/` 后内部 import 语句零改动；只有 3 个外部引用点需要同步：`index.html` 的 `<script>`、`tests/` 的 `../src/*`、部分截图脚本的默认输出路径。
+1. 模块之间一律使用 `./xxx.js` 同目录相对引用；比赛应用由 `record/index.html` 通过 `../src/app.js` 启动，测试引用 `../src/*`，浏览器脚本默认访问 `/record/`。
 2. 模块依赖方向：`state.js` / `audit.js` / `ui.js` 是叶子（无内部依赖）；`logic.js` 依赖这三个；`render.js` 同时依赖 `logic.js` 与 `state.js`。`render.js` ↔ `logic.js` 存在双向调用（渲染触发业务、业务回调重渲染），采用 ESM 循环导入 + 运行时调用，链接期安全。
 3. 测试只依赖 `rules.js` / `roster-import.js` 的纯函数，不引用 `app.js` 内部符号，拆分不会破坏单测。
-4. 部署：无 `vercel.json`，Vercel 直接托管根目录静态文件，零构建、零运行时依赖。移动文件后部署方式不变。
+4. 部署：Sites 使用 `npm run build` 生成 Cloudflare Worker 兼容的 `dist/`；Vercel 仍可直接托管源目录中的静态文件。前端无运行时第三方依赖。
 5. 本地记忆目录 `.workbuddy/` 由本机生成、含个人工作日志，按约定绝不提交；提交时显式 `git add <明确文件>`，不使用 `git add -A`。
+6. 赛事管理页面（`tournaments/index.html` + `src/tournaments.js`）只依赖 `state.js` 的数据层原语，不加载记分应用；进入比赛一律通过跳转 `/record/?match=<id>` 完成，因此记分逻辑对赛事的存在无感知。
 
 页面状态由 `state.screen` 控制：
 
@@ -179,8 +214,11 @@ volleyball-record/
 
 当前没有服务器数据库，所有比赛数据只保存在用户当前浏览器：
 
-- 主状态键：`volley-record-state-v1`
+- 主状态键：`volley-record-state-v1`（始终代表"当前正在记录的这一场"）
 - 恢复快照键：`volley-record-recovery-v1`
+- 赛事索引键：`volley-record-tournaments-v1`
+- 活动比赛槽：`volley-record-active-match-v1`
+- 比赛归档键：`volley-record-match-<matchId>`
 
 顶层状态主要包括：
 
@@ -191,6 +229,7 @@ volleyball-record/
 - `firstLineups` / `firstServer`：第一局位置与发球信息。
 - `match`：胜局、局记录、判罚、自由人控制、审计日志和赛后确认。
 - `viewSetIndex`：当前在记录表中查看的局。
+- `matchId` / `tournamentId`：当前比赛的归属；两者为 `null` 时表示一场不归属任何赛事的独立比赛。
 
 每局 `set` 主要保存：
 
@@ -207,6 +246,22 @@ volleyball-record/
 2. `normalizeState()` 的旧数据兼容逻辑。
 3. JSON 导入/导出和恢复快照测试。
 4. 对应的渲染与打印代码。
+
+### 6.1 赛事与比赛归属
+
+赛事只是比赛的容器，不参与任何记分规则。采用「活动槽 + 归档」模型：
+
+- 赛事索引 `volley-record-tournaments-v1`：数组，每项为 `{ id, name, venue, startDate, note, createdAt, matches[] }`。
+- `matches[]` 只保存摘要 `{ id, teamA, teamB, scoreText, status, updatedAt }`，不保存完整比赛数据。
+- 每场比赛的完整数据归档在 `volley-record-match-<matchId>`，由 `state.js` 的 `syncActiveMatch()` 在每次 `saveState()` 时写入，并刷新所属赛事里的摘要。
+- `state.matchId` / `state.tournamentId` 记录归属；两者为 `null` 即独立比赛，行为与赛事功能上线前完全一致，旧数据无需迁移。
+
+关键约束：
+
+1. 切换或新建比赛前必须先归档当前活动槽里的比赛（`src/tournaments.js` 的 `archiveCurrentMatch()`），否则未归档的进度会丢。
+2. 从 JSON 导入比赛时必须清空 `matchId` / `tournamentId` 并清除活动槽，否则导入的数据会写回原比赛归档、覆盖真实记录。
+3. 恢复快照**不**清空归属（快照本来就属于当前这场比赛）。
+4. 同一时刻只有一个活动比赛，符合实际使用场景：一次只记录一场比赛。
 
 ## 7. 关键规则实现说明
 
@@ -245,9 +300,10 @@ npm run dev
 
 ```text
 http://127.0.0.1:4173/
+http://127.0.0.1:4173/record/
 ```
 
-项目没有 `npm install` 依赖。`server.mjs` 只用于本地预览；Vercel 直接托管根目录中的静态文件。
+项目没有运行时第三方依赖。`server.mjs` 用于本地预览；`npm run build` 生成 Sites 部署产物；Vercel 仍可直接托管源目录中的静态文件。
 
 ## 9. 测试与验证
 
@@ -257,7 +313,7 @@ http://127.0.0.1:4173/
 npm test
 ```
 
-覆盖规则胜负判定、决胜局、轮转、轮次校验、自由人资格和名单导入。当前预期为 12 项通过。
+覆盖规则胜负判定、决胜局、轮转、轮次校验、自由人资格、名单导入，以及赛事积分计算和赛果推导。当前预期为 15 项通过（对阵图赛程生成相关测试已随功能移除）。
 
 ### 9.2 浏览器流程测试
 
@@ -269,6 +325,11 @@ node scripts/visual-test-chrome.mjs sample-page.png
 npm run test:advanced
 npm run test:import-end
 npm run test:pdf
+node scripts/tournament-features-check.mjs
+node scripts/tournament-delete-check.mjs
+node scripts/tournament-record-sync-check.mjs
+node scripts/tournament-teams-edit-check.mjs
+node scripts/tournament-flow-check.mjs
 ```
 
 重点覆盖：
@@ -278,6 +339,9 @@ npm run test:pdf
 - 加减分、暂停、换人、局间轮次和历史比分。
 - 自由人、判罚、审计纠错、JSON 恢复和自动快照。
 - CSV/XLSX 导入、比赛结束确认和打印 PDF。
+- 赛事：创建 → 队伍数量 + 名单录入（含分组）→ 选两队新建比赛带入名单 → 积分表渲染（无对阵图）。
+- 赛事：删除比赛（应用内确认弹窗生效）与删除赛事（连带清理比赛归档）。
+- 赛事：选两队建比赛记录并打完 3-0 → 比赛列表摘要显示队名与局分、积分表按排球规则排名。
 
 浏览器脚本统一通过 `scripts/_browser.mjs` 的 `launchBrowser()` 启动，Playwright 与 Chrome 路径支持环境变量覆盖：
 
@@ -391,21 +455,18 @@ git push origin main
 
 - 选择并添加开源许可证。
 - 增加 `CONTRIBUTING.md`、Issue 模板、安全政策和版本发布说明。
-- 拆分当前较大的 `app.js`，按状态、规则、渲染、操作和导出模块化。
 - 增加无障碍、键盘操作、多语言和更完整的移动端体验。
 - 建立规则版本号和规则变更记录，避免旧比赛被新规则静默改变。
 
 ## 15. 常见修改入口
 
-- 修改规则参数：`rules.js` 中的 `RULESETS` 和 `COMPETITION_PROFILES`。
-- 修改首页规则文案：`index.html`，并同步更新 `README.md` 和本文档。
-- 修改比赛状态：`app.js` 中的 `initialState()`、`normalizeState()`、`createSet()`。
-- 新增比赛操作：`bindScoreActions()` 及对应业务函数，并加入审计快照。
-- 修改记录表：`sheetHTML()`、`paperTeamHTML()`、`rotationCellHTML()`。
-- 修改打印封面：`printOverviewHTML()`。
-- 修改打印行为：`exportFullMatchPDF()` 和 `styles.css` 的打印媒体查询。
-- 修改名单导入：`roster-import.js` 的表头别名、解析和归一化逻辑。
-- 修改联系信息：`app.js` 中的 `CONTACT_EMAIL` 和 `openContactModal()`。
+- 修改规则参数：`src/rules.js` 中的 `RULESETS` 和 `COMPETITION_PROFILES`。
+- 修改平台首页：`index.html`；修改比赛入口：`record/index.html`。
+- 修改比赛状态：`src/state.js` 中的 `initialState()`、`normalizeState()`、`createSet()`。
+- 新增比赛操作：`src/render.js` 的事件绑定与 `src/logic.js` 的业务函数，并加入审计快照。
+- 修改记录表、打印封面和打印行为：`src/render.js` 与 `styles.css`。
+- 修改名单导入：`src/roster-import.js` 的表头别名、解析和归一化逻辑。
+- 修改联系信息：`src/state.js` 中的 `CONTACT_EMAIL` 和 `src/render.js` 中的 `openContactModal()`。
 
 ## 16. 交接验收清单
 

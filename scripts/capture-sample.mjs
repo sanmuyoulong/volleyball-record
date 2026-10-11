@@ -6,7 +6,7 @@ const browser = await launchBrowser();
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, deviceScaleFactor: 1 });
   const page = await context.newPage();
-  await page.goto("http://127.0.0.1:4173/", { waitUntil: "networkidle" });
+  await page.goto("http://127.0.0.1:4173/record/?mode=score", { waitUntil: "networkidle" });
   await page.locator("#load-demo").click();
   await page.locator(".scoreboard").waitFor();
   await page.waitForTimeout(900);
