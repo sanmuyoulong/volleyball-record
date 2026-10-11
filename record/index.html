@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Volley Record 专业排球比赛电子记分工具" />
-    <title>比赛记分 · Volley Record</title>
+    <meta name="description" content="Volley Record 排球比赛计分与 B6 技术统计工具" />
+    <title>比赛记录 · Volley Record</title>
     <link rel="stylesheet" href="../styles.css" />
     <link rel="icon" href="../assets/favicon.ico" />
   </head>
@@ -13,10 +13,10 @@
       <header class="topbar">
         <a class="brand" href="../" aria-label="返回 Volley Record 首页">
           <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
-          <span><strong>VOLLEY RECORD</strong><small>比赛记分</small></span>
+          <span><strong>VOLLEY RECORD</strong><small>比赛记录</small></span>
         </a>
         <nav class="product-nav" aria-label="产品功能">
-          <a href="../">首页</a><a class="active" href="./">比赛记分</a><a href="../tournaments/">赛事管理 <small>规划中</small></a>
+          <a href="../">首页</a><a class="active" href="./">比赛记录</a><a href="../tournaments/">赛事管理 <small>规划中</small></a>
         </nav>
         <div class="topbar-actions">
           <span class="save-state"><i></i><span id="save-label">本机自动保存</span></span>
@@ -50,6 +50,6 @@
       </section>
     </template>
     <template id="score-template"><section class="score-page page-enter"><div id="score-content"></div></section></template>
-    <script type="module" src="../src/app.js"></script>
+    <script type="module" src="../src/record-entry.js"></script>
   </body>
 </html>

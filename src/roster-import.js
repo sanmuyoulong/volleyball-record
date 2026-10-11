@@ -133,6 +133,7 @@ function xmlText(bytes) {
 export async function parseXlsxBuffer(buffer) {
   if (typeof DOMParser !== "function") throw new Error("当前环境不支持读取 XLSX，请使用浏览器打开页面。");
   const entries = await unzipEntries(buffer);
+  const parser = new DOMParser();
   let sheetName = "";
   const workbookBytes = entries.get("xl/workbook.xml");
   const relationBytes = entries.get("xl/_rels/workbook.xml.rels");
@@ -147,7 +148,6 @@ export async function parseXlsxBuffer(buffer) {
   }
   if (!entries.has(sheetName)) sheetName = [...entries.keys()].filter(name => /^xl\/worksheets\/sheet\d+\.xml$/i.test(name)).sort()[0];
   if (!sheetName) throw new Error("XLSX 中没有可读取的工作表。");
-  const parser = new DOMParser();
   const sharedBytes = entries.get("xl/sharedStrings.xml");
   const shared = sharedBytes
     ? [...parser.parseFromString(xmlText(sharedBytes), "application/xml").getElementsByTagName("si")].map(item => [...item.getElementsByTagName("t")].map(node => node.textContent || "").join(""))
@@ -177,7 +177,7 @@ export async function parseRosterFile(file) {
   throw new Error("请选择 .xlsx 或 .csv 文件；旧版 .xls 请先在 Excel 中另存为 .xlsx。");
 }
 
-export function normalizeRosterRows(rows) {
+export function normalizeRosterRows(rows, { minimumPlayers = 6 } = {}) {
   const cleanRows = (rows || []).map(row => Array.from(row || [], value => String(value ?? "").trim())).filter(row => row.some(Boolean));
   const headerRowIndex = cleanRows.slice(0, 10).findIndex(row => headerIndex(row, HEADER_ALIASES.number) >= 0 && headerIndex(row, HEADER_ALIASES.name) >= 0);
   if (headerRowIndex < 0) throw new Error("未找到表头。至少需要“号码”和“姓名”两列。");
@@ -200,7 +200,7 @@ export function normalizeRosterRows(rows) {
     coach ||= valueAt(row, "coach");
     captain ||= valueAt(row, "captainNumber").replace(/\.0$/, "");
   });
-  if (players.length < 6) throw new Error("有效队员少于 6 人，不能组成比赛阵容。");
+  if (players.length < minimumPlayers) throw new Error(minimumPlayers === 6 ? "有效队员少于 6 人，不能组成比赛阵容。" : `请至少填写 ${minimumPlayers} 名有效队员。`);
   if (players.length > 14) throw new Error("当前记录表最多支持 14 名队员，请精简名单后再导入。");
   const numbers = players.map(player => player.number);
   if (new Set(numbers).size !== numbers.length) throw new Error("名单中存在重复号码。");

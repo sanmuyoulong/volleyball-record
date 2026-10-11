@@ -37,3 +37,10 @@ test("名单归一化拒绝重复号码和超过两名自由人", () => {
   const liberos = parseDelimitedText("号码,姓名,自由人\n1,甲,是\n2,乙,是\n3,丙,是\n4,丁,\n5,戊,\n6,己,");
   assert.throws(() => normalizeRosterRows(liberos), /自由人不能超过 2 名/);
 });
+
+test("技术统计可读取一人名单，原计分仍需至少六人", () => {
+  const rows = parseDelimitedText("号码,姓名\n7,张三");
+  assert.equal(normalizeRosterRows(rows, { minimumPlayers: 1 }).players.length, 1);
+  assert.throws(() => normalizeRosterRows(rows), /少于 6 人/);
+  assert.throws(() => normalizeRosterRows([["号码", "姓名"]], { minimumPlayers: 1 }), /至少填写 1 名/);
+});

@@ -3,7 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { launchBrowser } from "./_browser.mjs";
 
-const baseUrl = process.env.VOLLEY_URL || "http://127.0.0.1:4173/record/";
+const baseUrl = process.env.VOLLEY_URL || "http://127.0.0.1:4173/record/?mode=score";
 await mkdir(resolve("tmp"), { recursive: true });
 
 const browser = await launchBrowser();
