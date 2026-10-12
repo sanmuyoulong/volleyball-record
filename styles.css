@@ -905,6 +905,28 @@ a.module-ready:hover { background: #0f52d5; }
 .statistics-demo-note strong { font-size: 14px; }
 .statistics-demo-note p { margin: 6px 0 0; font-size: 12px; color: var(--muted); line-height: 1.7; }
 .statistics-demo-note button { flex-shrink: 0; background: white; }
+.setter-setup-section h2 small { color: var(--muted); font-size: 12px; font-weight: 400; }
+.setter-enable-label { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 650; cursor: pointer; }
+.setter-enable-label input { width: 17px; height: 17px; accent-color: var(--blue); }
+.setter-setup-note { margin: 18px 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
+.setter-roster-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.setter-editor { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 8px; }
+.setter-editor-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.setter-editor-head b { flex-shrink: 0; font-size: 12px; }
+.setter-editor-head select { max-width: 240px; min-width: 0; padding: 7px; border: 1px solid var(--line); border-radius: 6px; font-size: 11px; background: white; }
+.setter-live-section { margin-top: 32px; }
+.setter-live-section h2 { font-size: 22px; margin: 0 0 8px; }
+.setter-live-section > p { font-size: 12px; color: var(--muted); line-height: 1.8; margin: 0 0 14px; }
+.setter-sheet-scroll { overflow-x: auto; border: 1px solid #c9ced6; border-radius: 10px; background: white; }
+.setter-table { min-width: 1050px; width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.setter-table th, .setter-table td { height: 48px; border-right: 1px solid #c9ced6; border-bottom: 1px solid #c9ced6; padding: 4px; text-align: center; }
+.setter-table thead th { height: 36px; background: #edf1f6; }
+.setter-table .setter-name-col { width: 120px; }
+.setter-table .setter-number-col { width: 50px; }
+.setter-table .setter-name-cell { position: sticky; left: 0; z-index: 2; background: white; overflow-wrap: anywhere; }
+.setter-table .setter-number-cell { position: sticky; left: 120px; z-index: 2; background: white; }
+.setter-table thead .setter-name-cell, .setter-table thead .setter-number-cell { z-index: 3; background: #edf1f6; }
+.setter-table .statistics-total, .setter-table tfoot { background: #edf1f6; font-weight: 700; }
 .statistics-roster-import-note { margin: 0 0 22px; }
 .statistics-roster-import-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .statistics-roster-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) 72px; gap: 8px; align-items: center; }
@@ -983,6 +1005,8 @@ a.module-ready:hover { background: #0f52d5; }
   .statistics-setup, .statistics-page { width: calc(100% - 28px); padding-top: 24px; }
   .statistics-form-section { padding: 22px 16px; }
   .statistics-roster-grid { grid-template-columns: 1fr; }
+  .setter-roster-grid { grid-template-columns: 1fr; }
+  .setter-editor { padding: 10px; }
   .statistics-set-inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .statistics-setup-actions { flex-wrap: wrap; }
   .record-mode-back { display: none; }
@@ -1013,6 +1037,7 @@ a.module-ready:hover { background: #0f52d5; }
   .statistics-paper-signatures { font-size: 12pt; margin-top: 3mm; }
   .statistics-paper-signatures > div { padding: 3mm; min-height: 10mm; }
   .statistics-sheet, .statistics-table tr { break-inside: avoid; }
+  .setter-live-section { display: none !important; }
 }
 
 /* 技术统计赛后分析：与原表一起分页打印，预览可横向查看明细。 */
@@ -1068,6 +1093,10 @@ a.module-ready:hover { background: #0f52d5; }
 .analysis-player-table tfoot { font-weight: 700; background: #edf1f6; }
 .analysis-footnote { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 10px; color: #627086; line-height: 1.7; }
 .analysis-calculation-notes p { margin: 0 0 5px; }
+.analysis-setter-team-table { min-width: 700px; }
+.analysis-setter-player-table { min-width: 780px; }
+.analysis-setter-player-table th[rowspan] { width: 150px; vertical-align: middle; border-right: 1px solid var(--line); }
+.analysis-setter-details-heading { margin-top: 22px !important; }
 @media (max-width: 700px) {
   .analysis-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .analysis-summary > div { padding: 12px; }
@@ -1105,6 +1134,10 @@ a.module-ready:hover { background: #0f52d5; }
   .analysis-footnote { margin-top: 4mm; padding-top: 2mm; font-size: 7pt; }
   .analysis-calculation-notes { margin-top: 2mm; padding-top: 1.5mm; line-height: 1.4; }
   .analysis-calculation-notes p { margin: 0 0 1mm; }
+  .analysis-setters table { min-width: 0; }
+  .analysis-setter-details-heading { margin-top: 4mm !important; }
+  .analysis-setter-player-table td, .analysis-setter-player-table th { padding-block: 1mm; font-size: 7.5pt; }
+  .analysis-setter-player-table th[rowspan] { width: 35mm; }
   .analysis-heading, .analysis-summary, .analysis-bottom-grid, .statistics-analysis-report tr, .analysis-calculation-notes { break-inside: avoid; }
 }
 

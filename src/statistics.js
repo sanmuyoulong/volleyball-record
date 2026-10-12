@@ -5,6 +5,8 @@ import {
 } from "./statistics-state.js";
 import { parseRosterFile, normalizeRosterRows } from "./roster-import.js";
 import { statisticsReportHTML } from "./statistics-report.js";
+import { SETTER_GROUPS, setterGroupTotal, setterTotals, hasSetterCounts, adjustSetterStatistic } from "./setter-statistics.js";
+import { setterTableHTML } from "./setter-table.js";
 
 let data;
 
@@ -61,8 +63,17 @@ function rosterRowsHTML() {
   return data.players.map((p, index) => `<div class="statistics-roster-row ${mixed ? "with-gender" : ""}"><span>${String(index + 1).padStart(2, "0")}</span><input name="name-${index}" aria-label="第 ${index + 1} 行队员姓名" value="${esc(p.name)}" placeholder="队员姓名" /><input name="number-${index}" aria-label="第 ${index + 1} 行队员号码" value="${esc(p.number)}" placeholder="号码" inputmode="numeric" maxlength="3" />${mixed ? `<select name="gender-${index}" aria-label="第 ${index + 1} 行队员性别"><option value="">性别</option>${["男", "女"].map(g => `<option value="${g}" ${p.gender === g ? "selected" : ""}>${g}</option>`).join("")}</select>` : ""}</div>`).join("");
 }
 
+function setterRowsHTML() {
+  const mixed = data.meta.gender === "混合";
+  return data.setterStatistics.players.map((p, index) => `<div class="setter-editor"><div class="setter-editor-head"><b>二传 ${index + 1}</b><select data-setter-pick="${index}" aria-label="为第 ${index + 1} 名二传带入已有队员" ${hasSetterCounts({ players: [p] }) ? "disabled" : ""}>${setterPickOptions()}</select></div><div class="statistics-roster-row ${mixed ? "with-gender" : ""}"><span>${String(index + 1).padStart(2, "0")}</span><input name="setter-name-${index}" aria-label="第 ${index + 1} 名二传姓名" placeholder="二传姓名" value="${esc(p.name)}" /><input name="setter-number-${index}" aria-label="第 ${index + 1} 名二传号码" placeholder="号码" inputmode="numeric" maxlength="3" value="${esc(p.number)}" />${mixed ? `<select name="setter-gender-${index}" aria-label="第 ${index + 1} 名二传性别"><option value="">性别</option>${["男", "女"].map(g => `<option value="${g}" ${p.gender === g ? "selected" : ""}>${g}</option>`).join("")}</select>` : ""}</div></div>`).join("");
+}
+
+function setterPickOptions() {
+  return '<option value="">从已有名单带入（可选）</option>' + data.players.map((p, index) => p.name && p.number ? `<option value="${index}">${esc(p.number)} 号 ${esc(p.name)}</option>` : "").join("");
+}
+
 function renderSetup() {
-  const hasCounts = data.players.some(p => GROUPS.some(g => groupTotal(p.counts, g.key)));
+  const hasCounts = data.players.some(p => GROUPS.some(g => groupTotal(p.counts, g.key))) || hasSetterCounts(data.setterStatistics);
   app.innerHTML = `<section class="statistics-setup page-enter">
     <div class="statistics-setup-heading"><span class="eyebrow">TECHNICAL STATISTICS · PRE-MATCH</span><h1>技术统计 · 赛前信息</h1><p>填写 B6 表所需的比赛信息和本队队员名单，开始后点击单元格的加减按钮即可记录。</p></div>
     <div class="statistics-demo-note"><div><strong>先体验一场样例比赛</strong><p>载入完整的比赛信息、名单、比分和技术数据，直接查看统计表与分析报告。</p></div><button class="ghost-button" id="load-statistics-demo" type="button">载入样例比赛</button></div>
@@ -81,6 +92,7 @@ function renderSetup() {
         <div class="roster-import-note statistics-roster-import-note"><span>Excel / CSV</span><p>支持第一工作表中的“号码、姓名、队伍名称、性别”列，也可直接使用计分页的名单文件。男女混合比赛需为每名队员选择男或女；未在文件中填写的性别可在导入后补充。导入前可预览，已有统计按号码保留。</p><div class="statistics-roster-import-actions"><button class="text-button" id="download-statistics-roster-template" type="button">下载 CSV 模板</button><button class="ghost-button compact" id="import-statistics-roster" type="button">导入名单</button></div></div>
         <div class="statistics-roster-grid">${rosterRowsHTML()}</div>
       </section>
+      <section class="statistics-form-section setter-setup-section"><div class="form-heading"><div><h2>二传技术统计 <small>可选</small></h2><p>分别记录到位球传球、调整球传球与二次进攻球，最多 4 名二传队员。</p></div><span class="form-step-number">03</span></div><label class="setter-enable-label"><input id="enable-setter-statistics" name="setter-enabled" type="checkbox" ${data.setterStatistics.enabled ? "checked" : ""} />启用二传技术统计</label><div id="setter-roster-panel" ${data.setterStatistics.enabled ? "" : "hidden"}><p class="setter-setup-note">可独立填写姓名与号码，也可从本队名单带入；已有统计的队员不能清空。取消启用会隐藏二传统计，已填信息与计数保留，重新启用即可恢复。</p><div id="setter-roster-grid" class="setter-roster-grid">${setterRowsHTML()}</div></div></section>
       <div id="validation-slot" role="alert"></div>
       <div class="statistics-setup-actions"><a class="ghost-button" href="./">返回比赛记录</a><button class="primary-button blue" type="submit">${hasCounts ? "保存并返回统计表" : "开始技术统计"} <span>→</span></button></div>
     </form>
@@ -96,6 +108,12 @@ function renderSetup() {
       p.number = String(values.get(`number-${index}`) || "").trim();
       if (values.has(`gender-${index}`)) p.gender = String(values.get(`gender-${index}`));
     });
+    data.setterStatistics.enabled = values.has("setter-enabled");
+    data.setterStatistics.players.forEach((p, index) => {
+      for (const key of ["name", "number", "gender"]) {
+        if (values.has(`setter-${key}-${index}`)) p[key] = String(values.get(`setter-${key}-${index}`)).trim();
+      }
+    });
   }
   app.querySelector("#download-statistics-roster-template").onclick = downloadStatisticsRosterTemplate;
   app.querySelector("#import-statistics-roster").onclick = () => {
@@ -103,14 +121,30 @@ function renderSetup() {
     save();
     openStatisticsRosterImport();
   };
-  form.addEventListener("input", () => {
+  form.addEventListener("input", event => {
     readForm();
     app.querySelector("#statistics-team-hint").textContent = `本表统计：${selectedTeam(data) || "请填写对应队名"}${hasCounts ? "（已记录数据，统计队伍固定）" : ""}`;
+    if (/^(name|number|gender)-\d+$/.test(event.target.name || "")) form.querySelectorAll("select[data-setter-pick]").forEach(pick => pick.innerHTML = setterPickOptions());
+    save();
+  });
+  app.querySelector("#enable-setter-statistics").addEventListener("change", () => {
+    readForm();
+    app.querySelector("#setter-roster-panel").hidden = !data.setterStatistics.enabled;
+    save();
+  });
+  form.addEventListener("change", event => {
+    if (!event.target.matches("select[data-setter-pick]") || event.target.value === "") return;
+    const index = Number(event.target.dataset.setterPick);
+    const p = data.players[Number(event.target.value)];
+    if (!p || hasSetterCounts({ players: [data.setterStatistics.players[index]] })) return;
+    Object.assign(data.setterStatistics.players[index], { name: p.name, number: p.number, gender: p.gender });
+    app.querySelector("#setter-roster-grid").innerHTML = setterRowsHTML();
     save();
   });
   app.querySelector("#stats-gender").addEventListener("change", () => {
     readForm();
     app.querySelector(".statistics-roster-grid").innerHTML = rosterRowsHTML();
+    app.querySelector("#setter-roster-grid").innerHTML = setterRowsHTML();
     app.querySelector("#validation-slot").replaceChildren();
     save();
   });
@@ -217,7 +251,8 @@ function renderTable() {
     </article></div>
     <p class="statistics-table-note">总数 = ${"得分 / 扣死 / 到位 / 拦死 / 好球"} + 一般 + 失误；全队合计自动汇总所有队员。空白队员行需先在名单中填写姓名与号码。</p>
     <p class="statistics-last-action" id="statistics-last-action" role="status" aria-live="polite">已载入本机技术统计记录。</p>
-    <p class="statistics-export-note">打印 / 导出 PDF 将同时包含原始统计表、全队分析与队员明细。可先点击“分析报告”预览。</p>
+    ${setterTableHTML(data)}
+    <p class="statistics-export-note">打印 / 导出 PDF 将同时包含原始统计表、全队分析与队员明细${data.setterStatistics.enabled ? "，以及二传原始计数与专项分析" : ""}。可先点击“分析报告”预览。</p>
     <div id="statistics-analysis-print" class="statistics-analysis-print">${statisticsReportHTML(data)}</div>
   </section>`;
   app.querySelector("#edit-statistics").onclick = () => { data.screen = "setup"; renderStatistics(); window.scrollTo(0, 0); };
@@ -240,6 +275,22 @@ function renderTable() {
       app.querySelector(`[data-team-total="${group}-${result}"]`).textContent = result === "total" ? groupTotal(totals, group) : totals[group][result];
     }
     const g = GROUPS.find(g => g.key === group);
+    app.querySelector("#statistics-last-action").textContent = `${p.number} 号 ${p.name} · ${g.label}${outcome === "success" ? g.success : outcome === "normal" ? "一般" : "失误"} ${Number(delta) > 0 ? "+1" : "−1"}，当前 ${p.counts[group][outcome]} 次。`;
+    save();
+  });
+  app.querySelector(".setter-table")?.addEventListener("click", event => {
+    const button = event.target.closest("button[data-setter-row]");
+    if (!button) return;
+    const { setterRow, group, outcome, delta } = button.dataset;
+    if (!adjustSetterStatistic(data, Number(setterRow), group, outcome, Number(delta))) return;
+    const p = data.setterStatistics.players[Number(setterRow)];
+    const cell = button.closest("td");
+    cell.querySelector(".statistics-count").textContent = p.counts[group][outcome];
+    cell.querySelector('[data-delta="-1"]').disabled = p.counts[group][outcome] === 0;
+    app.querySelector(`[data-setter-row-total="${setterRow}-${group}"]`).textContent = setterGroupTotal(p.counts, group);
+    const totals = setterTotals(data.setterStatistics.players);
+    for (const o of ["success", "normal", "error", "total"]) app.querySelector(`[data-setter-team-total="${group}-${o}"]`).textContent = o === "total" ? setterGroupTotal(totals, group) : totals[group][o];
+    const g = SETTER_GROUPS.find(g => g.key === group);
     app.querySelector("#statistics-last-action").textContent = `${p.number} 号 ${p.name} · ${g.label}${outcome === "success" ? g.success : outcome === "normal" ? "一般" : "失误"} ${Number(delta) > 0 ? "+1" : "−1"}，当前 ${p.counts[group][outcome]} 次。`;
     save();
   });
@@ -346,6 +397,7 @@ function openStatisticsData() {
     try {
       const imported = JSON.parse(await file.text());
       if (imported.type !== "volley-technical-statistics" || imported.version !== 1 || imported.data?.version !== 1 || !Array.isArray(imported.data.players)) throw new Error("请选择由本功能导出的技术统计 JSON 文件。");
+      if (imported.data.setterStatistics?.players?.length > 4) throw new Error("二传队员最多支持 4 人，请检查备份文件。");
       const next = normalizeStatistics(imported.data);
       if (imported.data.screen === "table" && validateStatistics(next)) throw new Error(validateStatistics(next));
       if (!await confirmDialog("导入将替换当前技术统计数据，确定继续吗？", { okText: "导入", danger: true })) return;

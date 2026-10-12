@@ -41,7 +41,7 @@ try {
   await page.goto(`${origin}/record/?mode=statistics`);
   for (const [key, value] of Object.entries({ competition: "名单导入测试赛", matchNo: "8", homeTeam: "原主队", awayTeam: "山城队", city: "上海", venue: "大学体育馆" })) await page.locator(`[name="${key}"]`).fill(value);
   await page.locator("#stats-gender").selectOption({ label: "男女混合" });
-  assert.equal(await page.locator('.statistics-roster-row select').count(), 14);
+  assert.equal(await page.locator('.statistics-roster-grid .statistics-roster-row select').count(), 14);
   const pendingDownload = page.waitForEvent("download");
   await page.locator("#download-statistics-roster-template").click();
   const download = await pendingDownload;
@@ -80,7 +80,7 @@ try {
   await page.locator('[name="gender-0"]').selectOption("男");
   await page.locator('[name="gender-1"]').selectOption("女");
   await page.locator("#stats-gender").selectOption("女子");
-  assert.equal(await page.locator('.statistics-roster-row select').count(), 0);
+  assert.equal(await page.locator('.statistics-roster-grid .statistics-roster-row select').count(), 0);
   await page.locator("#stats-gender").selectOption("混合");
   assert.equal(await page.locator('[name="gender-1"]').inputValue(), "女");
   assert.equal(await page.locator('[name="name-0"]').inputValue(), "张三");
