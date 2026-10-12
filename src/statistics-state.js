@@ -1,4 +1,5 @@
 // B6 技术统计数据独立保存，不占用比赛计分和赛事归档的存储槽。
+import { initialSetterStatistics, normalizeSetterStatistics, validateSetterStatistics, hasSetterCounts } from "./setter-statistics.js";
 export const STATISTICS_KEY = "volley-record-statistics-v1";
 export const GROUPS = [
   { key: "serve", label: "发球", success: "得分" },
@@ -26,7 +27,8 @@ export function initialStatistics() {
     },
     setScores: Array.from({ length: 5 }, () => ["", ""]),
     completedSets: Array(5).fill(false),
-    players: Array.from({ length: ROW_COUNT }, () => ({ name: "", number: "", gender: "", counts: emptyCounts() }))
+    players: Array.from({ length: ROW_COUNT }, () => ({ name: "", number: "", gender: "", counts: emptyCounts() })),
+    setterStatistics: initialSetterStatistics()
   };
 }
 
@@ -59,13 +61,20 @@ export function sampleStatistics() {
       p.counts[g.key][outcome] = records[index]?.[group]?.[result] || 0;
     }));
   });
+  data.setterStatistics.enabled = true;
+  const setterRecords = [
+    { inSystem: { success: 31, normal: 7, error: 2 }, outOfSystem: { success: 14, normal: 11, error: 3 }, secondAttack: { success: 3, normal: 2, error: 1 } },
+    { inSystem: { success: 12, normal: 4, error: 1 }, outOfSystem: { success: 6, normal: 5, error: 1 }, secondAttack: { success: 1, normal: 2, error: 0 } }
+  ];
+  setterRecords.forEach((counts, index) => Object.assign(data.setterStatistics.players[index], { name: names[index], number: String(index + 1), gender: genders[index], counts }));
   return data;
 }
 
 export function hasStatisticsContent(data) {
   return ["competition", "matchNo", "homeTeam", "awayTeam", "city", "venue", "statistician", "representative", "winner"].some(key => data.meta[key]?.trim())
     || data.players.some(p => p.name.trim() || p.number.trim() || GROUPS.some(g => groupTotal(p.counts, g.key)))
-    || data.setScores.some(pair => pair.some(value => value !== ""));
+    || data.setScores.some(pair => pair.some(value => value !== ""))
+    || data.setterStatistics?.players.some(p => p.name.trim() || p.number.trim()) || hasSetterCounts(data.setterStatistics);
 }
 
 function count(value) {
@@ -99,6 +108,7 @@ export function normalizeStatistics(saved) {
     }
     return { name: String(player.name || ""), number: String(player.number || ""), gender: ["男", "女"].includes(player.gender) ? player.gender : "", counts };
   });
+  base.setterStatistics = normalizeSetterStatistics(saved.setterStatistics);
   if (base.screen === "table" && validateStatistics(base)) base.screen = "setup";
   return base;
 }
@@ -152,7 +162,7 @@ export function prepareStatisticsRosterImport(data, imported) {
   });
   const recorded = data.players.filter(p => GROUPS.some(g => groupTotal(p.counts, g.key) > 0));
   const teamName = String(imported.teamName || "").trim();
-  if (recorded.length && teamName && teamName !== selectedTeam(data)) throw new Error("文件队名与当前统计队伍不同。已有技术统计时，请导入同一队伍的名单。");
+  if ((recorded.length || hasSetterCounts(data.setterStatistics)) && teamName && teamName !== selectedTeam(data)) throw new Error("文件队名与当前统计队伍不同。已有技术统计时，请导入同一队伍的名单。");
   const recordedNumbers = new Set();
   for (const player of recorded) {
     if (!/^\d{1,3}$/.test(player.number.trim()) || recordedNumbers.has(Number(player.number))) throw new Error("当前已统计队员的号码无效或重复，请先在名单中修正。");
@@ -203,7 +213,7 @@ export function validateStatistics(data) {
     filled++;
   }
   if (!filled) return "请至少填写一名队员的姓名和号码。";
-  return validateStatisticsScores(data.setScores, data.completedSets);
+  return validateSetterStatistics(data.setterStatistics, m.gender) || validateStatisticsScores(data.setScores, data.completedSets);
 }
 
 export function validateStatisticsScores(setScores, completedSets) {

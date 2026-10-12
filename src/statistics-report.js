@@ -1,10 +1,11 @@
 import { escapeHTML as esc } from "./ui.js";
 import { selectedTeam, matchResult } from "./statistics-state.js";
 import { buildStatisticsAnalysis, formatPercentage as percent, RATE_LABELS } from "./statistics-analysis.js";
+import { setterReportHTML } from "./setter-report.js";
 
 function header(data, subtitle, page) {
   const m = data.meta;
-  return `<header class="analysis-heading"><div><span class="eyebrow">VOLLEY RECORD · MATCH ANALYSIS</span><h2>赛后分析报告 <small>${subtitle}</small></h2><p>${esc(m.competition)} · ${esc(selectedTeam(data))} · ${esc(m.date)} · 场序 ${esc(m.matchNo)}</p></div><span class="analysis-page-number">${page} / 2</span></header>`;
+  return `<header class="analysis-heading"><div><span class="eyebrow">VOLLEY RECORD · MATCH ANALYSIS</span><h2>赛后分析报告 <small>${subtitle}</small></h2><p>${esc(m.competition)} · ${esc(selectedTeam(data))} · ${esc(m.date)} · 场序 ${esc(m.matchNo)}</p></div><span class="analysis-page-number">${page} / ${data.setterStatistics?.enabled ? 3 : 2}</span></header>`;
 }
 
 function bar(group) {
@@ -36,5 +37,6 @@ export function statisticsReportHTML(data) {
       <div class="analysis-table-scroll"><table class="analysis-player-table"><thead><tr><th>号码</th><th>队员姓名</th><th>得分</th><th>失误</th>${report.groups.map(g => `<th>${g.label}<small>${g.key === "serve" || g.key === "block" ? "得分率" : g.key === "attack" ? "成功率" : g.key === "receive" ? "到位率" : "好球率"}</small></th>`).join("")}</tr></thead><tbody>${report.players.map(p => `<tr><td>${esc(p.number)}</td><th>${esc(p.name)}${data.meta.gender === "混合" ? `<small>${esc(p.gender)}</small>` : ""}</th><td><b>${p.points}</b></td><td>${p.errors}</td>${p.groups.map(g => `<td><span>${g.success} / ${g.total} · <b>${percent(g.successRate)}</b></span><small>失误 ${g.error} · ${percent(g.errorRate)}</small></td>`).join("")}</tr>`).join("")}</tbody><tfoot><tr><th colspan="2">全队合计</th><td><b>${report.points}</b></td><td>${report.errors}</td>${report.groups.map(g => `<td><span>${g.success} / ${g.total} · <b>${percent(g.successRate)}</b></span><small>失误 ${g.error} · ${percent(g.errorRate)}</small></td>`).join("")}</tr></tfoot></table></div>
       <footer class="analysis-footnote analysis-calculation-notes"><p><b>计算说明：</b>成功项占比 = 得分 / 扣死 / 到位 / 拦死 / 好球次数 ÷ 对应技术总次数；失误率 = 该项失误次数 ÷ 该项总次数。总次数 = 成功项 + 一般 + 失误。全队比例按汇总次数计算，不取队员百分比的平均值。</p><p>个人得分 = 发球得分 + 扣死 + 拦死。百分比保留 1 位小数；分母为 0 时显示“—”。零记录队员不参与得分排名。报告覆盖当前已录入的数据，补录或纠正后重新导出即可更新。</p></footer>
     </section>
+    ${setterReportHTML(data, header(data, "二传专项分析", 3))}
   </article>`;
 }
