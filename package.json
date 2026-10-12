@@ -11,6 +11,7 @@
     "test:statistics": "node scripts/statistics-flow-check.mjs",
     "test:statistics-import": "node scripts/statistics-roster-import-check.mjs",
     "test:statistics-analysis": "node scripts/statistics-analysis-check.mjs",
+    "test:statistics-demo": "node scripts/statistics-demo-check.mjs",
     "test:import-end": "node scripts/roster-import-match-end-check.mjs",
     "test:pdf": "node scripts/export-pdf-check.mjs output/pdf/volleyball-match-record-sample.pdf"
   }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { initialStatistics, normalizeStatistics, adjustStatistic, groupTotal, teamTotals, validateStatistics, validateStatisticsScores, selectedTeam, statisticsPlayerGender, matchResult, GROUPS, prepareStatisticsRosterImport } from "../src/statistics-state.js";
+import { initialStatistics, sampleStatistics, hasStatisticsContent, normalizeStatistics, adjustStatistic, groupTotal, teamTotals, validateStatistics, validateStatisticsScores, selectedTeam, statisticsPlayerGender, matchResult, GROUPS, prepareStatisticsRosterImport } from "../src/statistics-state.js";
 
 function match() {
   const data = initialStatistics();
@@ -9,6 +9,36 @@ function match() {
   Object.assign(data.players[1], { name: "李四", number: "9" });
   return data;
 }
+
+test("技术统计样例可直接记录和分析，混合名单完整，每次载入独立生成数据", () => {
+  const data = sampleStatistics();
+  assert.equal(data.screen, "table");
+  assert.equal(validateStatistics(data), "");
+  assert.equal(data.players.length, 14);
+  assert.match(data.meta.competition, /样例/);
+  assert.equal(data.meta.gender, "混合");
+  assert.equal(data.players.every(p => p.name && p.number && ["男", "女"].includes(p.gender)), true);
+  assert.equal(matchResult(data.setScores, data.completedSets), "3 : 1");
+  assert.equal(GROUPS.every(g => groupTotal(teamTotals(data.players), g.key) > 0), true);
+  assert.equal(data.players.some(p => GROUPS.every(g => groupTotal(p.counts, g.key) === 0)), true);
+  const another = sampleStatistics();
+  adjustStatistic(data, 0, "serve", "success", 1);
+  data.players[0].name = "已修改";
+  data.setScores[0][0] = "99";
+  assert.equal(another.players[0].counts.serve.success, 2);
+  assert.notEqual(another.players[0].name, data.players[0].name);
+  assert.equal(another.setScores[0][0], "25");
+  assert.equal(normalizeStatistics(another).screen, "table");
+});
+
+test("载入样例前识别已有比赛信息、名单、比分或统计，空表可直接体验", () => {
+  assert.equal(hasStatisticsContent(initialStatistics()), false);
+  for (const edit of [d => d.meta.competition = "草稿", d => d.players[0].name = "队员", d => d.setScores[0][0] = "8", d => d.players[0].counts.defend.normal = 1]) {
+    const data = initialStatistics();
+    edit(data);
+    assert.equal(hasStatisticsContent(data), true);
+  }
+});
 
 test("B6 保留 14 行，逐项加减联动队员总数和全队合计，最低为零", () => {
   const data = match();

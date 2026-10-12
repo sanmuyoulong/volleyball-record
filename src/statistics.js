@@ -1,6 +1,6 @@
 import { app, modalRoot, escapeHTML as esc, toast, safeFilename, confirmDialog } from "./ui.js";
 import {
-  STATISTICS_KEY, GROUPS, OUTCOMES, initialStatistics, normalizeStatistics,
+  STATISTICS_KEY, GROUPS, OUTCOMES, initialStatistics, sampleStatistics, hasStatisticsContent, normalizeStatistics,
   groupTotal, teamTotals, adjustStatistic, selectedTeam, statisticsPlayerGender, matchResult, validateStatistics, validateStatisticsScores, prepareStatisticsRosterImport
 } from "./statistics-state.js";
 import { parseRosterFile, normalizeRosterRows } from "./roster-import.js";
@@ -40,7 +40,16 @@ function renderStatistics() {
   modalRoot.replaceChildren();
   if (data.screen === "table") renderTable();
   else renderSetup();
+  app.querySelector("#load-statistics-demo").onclick = loadStatisticsDemo;
   save();
+}
+
+async function loadStatisticsDemo() {
+  if (hasStatisticsContent(data) && !await confirmDialog("载入样例比赛将替换当前技术统计的比赛信息、队员名单、比分与统计数据。如需保留当前记录，请先在数据管理中导出备份。", { okText: "载入样例", danger: true })) return;
+  data = sampleStatistics();
+  renderStatistics();
+  window.scrollTo(0, 0);
+  toast("已载入样例比赛，可体验加减记录、分析报告与 PDF 导出。");
 }
 
 function field(key, label, { type = "text", required = false, placeholder = "" } = {}) {
@@ -56,6 +65,7 @@ function renderSetup() {
   const hasCounts = data.players.some(p => GROUPS.some(g => groupTotal(p.counts, g.key)));
   app.innerHTML = `<section class="statistics-setup page-enter">
     <div class="statistics-setup-heading"><span class="eyebrow">TECHNICAL STATISTICS · PRE-MATCH</span><h1>技术统计 · 赛前信息</h1><p>填写 B6 表所需的比赛信息和本队队员名单，开始后点击单元格的加减按钮即可记录。</p></div>
+    <div class="statistics-demo-note"><div><strong>先体验一场样例比赛</strong><p>载入完整的比赛信息、名单、比分和技术数据，直接查看统计表与分析报告。</p></div><button class="ghost-button" id="load-statistics-demo" type="button">载入样例比赛</button></div>
     <form id="statistics-form">
       <section class="statistics-form-section"><div class="form-heading"><div><h2>比赛信息</h2><p>主客队顺序用于比赛结果与各局比分，队名对应本次统计的队伍。</p></div><span class="form-step-number">01</span></div>
         <div class="form-grid">
@@ -192,7 +202,7 @@ function totalsHTML() {
 function renderTable() {
   const m = data.meta;
   app.innerHTML = `<section class="statistics-page page-enter">
-    <div class="statistics-toolbar"><div><span class="eyebrow">TECHNICAL STATISTICS · LIVE</span><h1>技术统计</h1><p>点击 ＋ 记录一次，点击 − 纠正一次；总数自动相加，数据实时保存。</p></div><div><button class="ghost-button" id="edit-statistics" type="button">比赛信息与名单</button><button class="ghost-button" id="edit-statistics-scores" type="button">填写比分</button><button class="ghost-button" id="edit-statistics-signatures" type="button">填写签名</button><button class="ghost-button" id="view-statistics-analysis" type="button">分析报告</button><button class="primary-button blue" id="print-statistics" type="button">打印 / 导出 PDF</button></div></div>
+    <div class="statistics-toolbar"><div><span class="eyebrow">TECHNICAL STATISTICS · LIVE</span><h1>技术统计</h1><p>点击 ＋ 记录一次，点击 − 纠正一次；总数自动相加，数据实时保存。</p></div><div><button class="ghost-button" id="load-statistics-demo" type="button">载入样例比赛</button><button class="ghost-button" id="edit-statistics" type="button">比赛信息与名单</button><button class="ghost-button" id="edit-statistics-scores" type="button">填写比分</button><button class="ghost-button" id="edit-statistics-signatures" type="button">填写签名</button><button class="ghost-button" id="view-statistics-analysis" type="button">分析报告</button><button class="primary-button blue" id="print-statistics" type="button">打印 / 导出 PDF</button></div></div>
     <div class="statistics-scroll-hint">表格可左右滑动，队员姓名和号码固定在左侧。</div>
     <div class="statistics-sheet-scroll" role="region" aria-label="B6 技术统计表，可左右滚动" tabindex="0"><article class="statistics-sheet">
       <div class="statistics-paper-heading"><div class="statistics-paper-meta"><div><span>比赛名称</span><b>${esc(m.competition)}</b></div><div><span>场序</span><b>${esc(m.matchNo)}</b></div><div><span>队名</span><b>${esc(selectedTeam(data))}</b></div></div></div>

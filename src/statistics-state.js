@@ -30,6 +30,44 @@ export function initialStatistics() {
   };
 }
 
+export function sampleStatistics() {
+  const data = initialStatistics();
+  data.screen = "table";
+  Object.assign(data.meta, {
+    competition: "2026 校园排球联赛（样例比赛）", matchNo: "A-07",
+    homeTeam: "海风俱乐部", awayTeam: "北辰体育", teamSide: "home", gender: "混合",
+    city: "杭州", venue: "滨江综合体育馆", statistician: "示例统计员", representative: "示例技术代表", winner: "home"
+  });
+  data.setScores = [["25", "20"], ["21", "25"], ["25", "19"], ["25", "22"], ["", ""]];
+  data.completedSets = [true, true, true, true, false];
+  const names = ["程野", "陆骁", "陈放", "高桥", "梁川", "吴桐", "韩序", "沈舟", "邵一", "孟驰", "许燃", "唐越", "季风", "宋扬"];
+  const genders = ["男", "男", "女", "男", "男", "女", "男", "男", "女", "男", "女", "男", "女", "女"];
+  // 每行依次为发球、扣球、一传、拦网、防守的成功项 / 一般 / 失误。
+  const records = [
+    [[2, 11, 1], [14, 12, 3], [5, 2, 1], [3, 4, 1], [7, 4, 1]],
+    [[1, 10, 1], [12, 11, 2], [4, 3, 0], [2, 5, 1], [8, 5, 1]],
+    [[1, 8, 0], [8, 10, 2], [9, 6, 2], [1, 2, 0], [9, 6, 1]],
+    [[0, 12, 2], [6, 8, 1], [3, 3, 1], [3, 6, 1], [5, 4, 0]],
+    [[2, 13, 1], [2, 4, 1], [13, 5, 1], [0, 2, 0], [11, 8, 2]],
+    [[0, 0, 0], [0, 0, 0], [19, 8, 1], [0, 0, 0], [17, 7, 2]],
+    [[1, 3, 0], [4, 6, 1], [2, 2, 0], [1, 2, 0], [3, 2, 0]],
+    [[0, 4, 0], [3, 4, 1], [4, 2, 0], [0, 1, 0], [4, 3, 1]]
+  ];
+  data.players.forEach((p, index) => {
+    Object.assign(p, { name: names[index], number: String(index + 1), gender: genders[index] });
+    GROUPS.forEach((g, group) => OUTCOMES.forEach((outcome, result) => {
+      p.counts[g.key][outcome] = records[index]?.[group]?.[result] || 0;
+    }));
+  });
+  return data;
+}
+
+export function hasStatisticsContent(data) {
+  return ["competition", "matchNo", "homeTeam", "awayTeam", "city", "venue", "statistician", "representative", "winner"].some(key => data.meta[key]?.trim())
+    || data.players.some(p => p.name.trim() || p.number.trim() || GROUPS.some(g => groupTotal(p.counts, g.key)))
+    || data.setScores.some(pair => pair.some(value => value !== ""));
+}
+
 function count(value) {
   return Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
