@@ -4,6 +4,7 @@ import {
   groupTotal, teamTotals, adjustStatistic, selectedTeam, statisticsPlayerGender, matchResult, validateStatistics, validateStatisticsScores, prepareStatisticsRosterImport
 } from "./statistics-state.js";
 import { parseRosterFile, normalizeRosterRows } from "./roster-import.js";
+import { statisticsReportHTML } from "./statistics-report.js";
 
 let data;
 
@@ -23,6 +24,7 @@ function save() {
 export function startStatistics() {
   try { data = normalizeStatistics(JSON.parse(localStorage.getItem(STATISTICS_KEY))); }
   catch { data = initialStatistics(); }
+  window.addEventListener("beforeprint", refreshAnalysisReport);
   document.querySelector("#data-manager").onclick = openStatisticsData;
   document.querySelector("#reset-app").textContent = "新建技术统计";
   document.querySelector("#reset-app").onclick = async () => {
@@ -190,7 +192,7 @@ function totalsHTML() {
 function renderTable() {
   const m = data.meta;
   app.innerHTML = `<section class="statistics-page page-enter">
-    <div class="statistics-toolbar"><div><span class="eyebrow">TECHNICAL STATISTICS · LIVE</span><h1>技术统计</h1><p>点击 ＋ 记录一次，点击 − 纠正一次；总数自动相加，数据实时保存。</p></div><div><button class="ghost-button" id="edit-statistics" type="button">比赛信息与名单</button><button class="ghost-button" id="edit-statistics-scores" type="button">填写比分</button><button class="ghost-button" id="edit-statistics-signatures" type="button">填写签名</button><button class="primary-button blue" id="print-statistics" type="button">打印 / 导出 PDF</button></div></div>
+    <div class="statistics-toolbar"><div><span class="eyebrow">TECHNICAL STATISTICS · LIVE</span><h1>技术统计</h1><p>点击 ＋ 记录一次，点击 − 纠正一次；总数自动相加，数据实时保存。</p></div><div><button class="ghost-button" id="edit-statistics" type="button">比赛信息与名单</button><button class="ghost-button" id="edit-statistics-scores" type="button">填写比分</button><button class="ghost-button" id="edit-statistics-signatures" type="button">填写签名</button><button class="ghost-button" id="view-statistics-analysis" type="button">分析报告</button><button class="primary-button blue" id="print-statistics" type="button">打印 / 导出 PDF</button></div></div>
     <div class="statistics-scroll-hint">表格可左右滑动，队员姓名和号码固定在左侧。</div>
     <div class="statistics-sheet-scroll" role="region" aria-label="B6 技术统计表，可左右滚动" tabindex="0"><article class="statistics-sheet">
       <div class="statistics-paper-heading"><div class="statistics-paper-meta"><div><span>比赛名称</span><b>${esc(m.competition)}</b></div><div><span>场序</span><b>${esc(m.matchNo)}</b></div><div><span>队名</span><b>${esc(selectedTeam(data))}</b></div></div></div>
@@ -205,11 +207,14 @@ function renderTable() {
     </article></div>
     <p class="statistics-table-note">总数 = ${"得分 / 扣死 / 到位 / 拦死 / 好球"} + 一般 + 失误；全队合计自动汇总所有队员。空白队员行需先在名单中填写姓名与号码。</p>
     <p class="statistics-last-action" id="statistics-last-action" role="status" aria-live="polite">已载入本机技术统计记录。</p>
+    <p class="statistics-export-note">打印 / 导出 PDF 将同时包含原始统计表、全队分析与队员明细。可先点击“分析报告”预览。</p>
+    <div id="statistics-analysis-print" class="statistics-analysis-print">${statisticsReportHTML(data)}</div>
   </section>`;
   app.querySelector("#edit-statistics").onclick = () => { data.screen = "setup"; renderStatistics(); window.scrollTo(0, 0); };
   app.querySelector("#edit-statistics-scores").onclick = openStatisticsScores;
   app.querySelector("#edit-statistics-signatures").onclick = openStatisticsSignatures;
-  app.querySelector("#print-statistics").onclick = () => window.print();
+  app.querySelector("#view-statistics-analysis").onclick = openStatisticsAnalysis;
+  app.querySelector("#print-statistics").onclick = printStatisticsWithReport;
   app.querySelector(".statistics-table").addEventListener("click", event => {
     const button = event.target.closest("button[data-delta]");
     if (!button) return;
@@ -228,6 +233,28 @@ function renderTable() {
     app.querySelector("#statistics-last-action").textContent = `${p.number} 号 ${p.name} · ${g.label}${outcome === "success" ? g.success : outcome === "normal" ? "一般" : "失误"} ${Number(delta) > 0 ? "+1" : "−1"}，当前 ${p.counts[group][outcome]} 次。`;
     save();
   });
+}
+
+function refreshAnalysisReport() {
+  const report = app.querySelector("#statistics-analysis-print");
+  if (report) report.innerHTML = statisticsReportHTML(data);
+}
+
+function printStatisticsWithReport() {
+  modalRoot.replaceChildren();
+  refreshAnalysisReport();
+  const previousTitle = document.title;
+  document.title = `${safeFilename(data.meta.competition)}-${safeFilename(selectedTeam(data))}-技术统计与分析报告`;
+  window.addEventListener("afterprint", () => { document.title = previousTitle; }, { once: true });
+  window.print();
+}
+
+function openStatisticsAnalysis() {
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal wide statistics-analysis-modal" role="dialog" aria-modal="true" aria-labelledby="statistics-analysis-title"><div class="modal-head"><div><h2 id="statistics-analysis-title">分析报告预览</h2><p>根据当前已录入的数据自动生成，打印 / 导出 PDF 时与原始统计表一起输出。</p></div><button class="icon-button" id="close-statistics-analysis" type="button" aria-label="关闭">×</button></div>${statisticsReportHTML(data)}<div class="modal-actions"><button class="ghost-button" id="cancel-statistics-analysis" type="button">关闭</button><button class="primary-button blue" id="print-statistics-analysis" type="button">打印 / 导出统计表与报告</button></div></section></div>`;
+  const close = () => modalRoot.replaceChildren();
+  modalRoot.querySelector("#close-statistics-analysis").onclick = close;
+  modalRoot.querySelector("#cancel-statistics-analysis").onclick = close;
+  modalRoot.querySelector("#print-statistics-analysis").onclick = printStatisticsWithReport;
 }
 
 function paperResultHTML() {
