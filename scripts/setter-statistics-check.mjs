@@ -31,7 +31,7 @@ try {
   await page.reload();
   assert.equal(await page.locator('[data-setter-row-total="0-inSystem"]').innerText(), "41");
   await page.locator("#view-statistics-analysis").click();
-  assert.equal(await page.locator(".statistics-analysis-modal .analysis-print-page").count(), 3);
+  assert.equal(await page.locator(".statistics-analysis-modal .analysis-print-page").count(), 4);
   assert.equal(await page.locator(".statistics-analysis-modal .analysis-summary strong").first().innerText(), "66");
   assert.equal(await page.locator(".statistics-analysis-modal .analysis-setters .analysis-summary strong").nth(2).innerText(), "5");
   await page.locator("#close-statistics-analysis").click();
@@ -45,11 +45,10 @@ try {
   assert.equal(await page.locator('[name="setter-name-0"]').inputValue(), "程野");
   assert.equal(await page.locator('[data-setter-pick="0"]').isDisabled(), true);
   await page.locator('[name="setter-name-0"]').fill("");
-  await page.locator('[name="setter-number-0"]').fill("");
+  assert.equal(await page.locator('[name="setter-number-0"]').getAttribute("readonly"), "");
   await page.getByRole("button", { name: "保存并返回统计表" }).click();
   assert.match(await page.locator("#validation-slot").innerText(), /不能清空/);
   await page.locator('[name="setter-name-0"]').fill("程野");
-  await page.locator('[name="setter-number-0"]').fill("1");
   await page.locator('[data-setter-pick="2"]').selectOption("2");
   assert.equal(await page.locator('[name="setter-name-2"]').inputValue(), "陈放");
   assert.equal(await page.locator('[name="setter-gender-2"]').inputValue(), "女");

@@ -28,6 +28,7 @@ try {
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(`${origin}/record/?mode=statistics`);
+  await page.locator("#view-statistics-analysis").waitFor();
   const initialStorage = await page.evaluate(() => localStorage.getItem("volley-record-statistics-v1"));
   await page.locator("#view-statistics-analysis").click();
   assert.equal(await page.locator(".statistics-analysis-modal .analysis-print-page").count(), 2);

@@ -7,6 +7,8 @@ import { parseRosterFile, normalizeRosterRows } from "./roster-import.js";
 import { statisticsReportHTML } from "./statistics-report.js";
 import { SETTER_GROUPS, setterGroupTotal, setterTotals, hasSetterCounts, adjustSetterStatistic } from "./setter-statistics.js";
 import { setterTableHTML } from "./setter-table.js";
+import { hasAttributedAttacks, setActiveSetter, currentAttackSetter, latestAttackSetter } from "./attack-attribution.js";
+import { activeSetterHTML, activeSetterSummaryHTML, activeSetterPlayersHTML, attackSetterLabel } from "./attack-comparison-view.js";
 
 let data;
 
@@ -65,7 +67,10 @@ function rosterRowsHTML() {
 
 function setterRowsHTML() {
   const mixed = data.meta.gender === "混合";
-  return data.setterStatistics.players.map((p, index) => `<div class="setter-editor"><div class="setter-editor-head"><b>二传 ${index + 1}</b><select data-setter-pick="${index}" aria-label="为第 ${index + 1} 名二传带入已有队员" ${hasSetterCounts({ players: [p] }) ? "disabled" : ""}>${setterPickOptions()}</select></div><div class="statistics-roster-row ${mixed ? "with-gender" : ""}"><span>${String(index + 1).padStart(2, "0")}</span><input name="setter-name-${index}" aria-label="第 ${index + 1} 名二传姓名" placeholder="二传姓名" value="${esc(p.name)}" /><input name="setter-number-${index}" aria-label="第 ${index + 1} 名二传号码" placeholder="号码" inputmode="numeric" maxlength="3" value="${esc(p.number)}" />${mixed ? `<select name="setter-gender-${index}" aria-label="第 ${index + 1} 名二传性别"><option value="">性别</option>${["男", "女"].map(g => `<option value="${g}" ${p.gender === g ? "selected" : ""}>${g}</option>`).join("")}</select>` : ""}</div></div>`).join("");
+  return data.setterStatistics.players.map((p, index) => {
+    const attributed = hasAttributedAttacks(data, index);
+    return `<div class="setter-editor"><div class="setter-editor-head"><b>二传 ${index + 1}</b><select data-setter-pick="${index}" aria-label="为第 ${index + 1} 名二传带入已有队员" ${hasSetterCounts({ players: [p] }) || attributed ? "disabled" : ""}>${setterPickOptions()}</select></div><div class="statistics-roster-row ${mixed ? "with-gender" : ""}"><span>${String(index + 1).padStart(2, "0")}</span><input name="setter-name-${index}" aria-label="第 ${index + 1} 名二传姓名" placeholder="二传姓名" value="${esc(p.name)}" /><input name="setter-number-${index}" aria-label="第 ${index + 1} 名二传号码" placeholder="号码" inputmode="numeric" maxlength="3" value="${esc(p.number)}" ${attributed ? 'readonly title="已有在场进攻记录，号码固定"' : ""} />${mixed ? `<select name="setter-gender-${index}" aria-label="第 ${index + 1} 名二传性别"><option value="">性别</option>${["男", "女"].map(g => `<option value="${g}" ${p.gender === g ? "selected" : ""}>${g}</option>`).join("")}</select>` : ""}</div>${attributed ? '<small class="setter-identity-note">已有在场进攻记录，号码固定；姓名可纠正。</small>' : ""}</div>`;
+  }).join("");
 }
 
 function setterPickOptions() {
@@ -111,7 +116,7 @@ function renderSetup() {
     data.setterStatistics.enabled = values.has("setter-enabled");
     data.setterStatistics.players.forEach((p, index) => {
       for (const key of ["name", "number", "gender"]) {
-        if (values.has(`setter-${key}-${index}`)) p[key] = String(values.get(`setter-${key}-${index}`)).trim();
+        if (values.has(`setter-${key}-${index}`) && !(key === "number" && hasAttributedAttacks(data, index))) p[key] = String(values.get(`setter-${key}-${index}`)).trim();
       }
     });
   }
@@ -136,7 +141,7 @@ function renderSetup() {
     if (!event.target.matches("select[data-setter-pick]") || event.target.value === "") return;
     const index = Number(event.target.dataset.setterPick);
     const p = data.players[Number(event.target.value)];
-    if (!p || hasSetterCounts({ players: [data.setterStatistics.players[index]] })) return;
+    if (!p || hasSetterCounts({ players: [data.setterStatistics.players[index]] }) || hasAttributedAttacks(data, index)) return;
     Object.assign(data.setterStatistics.players[index], { name: p.name, number: p.number, gender: p.gender });
     app.querySelector("#setter-roster-grid").innerHTML = setterRowsHTML();
     save();
@@ -213,6 +218,7 @@ function openStatisticsRosterImport() {
   confirm.onclick = () => {
     if (!prepared) return;
     data.players = prepared.players;
+    data.attackAttribution = prepared.attackAttribution;
     data.meta[data.meta.teamSide === "away" ? "awayTeam" : "homeTeam"] = prepared.teamName;
     renderStatistics();
     app.querySelector("#import-statistics-roster").scrollIntoView({ block: "center" });
@@ -237,7 +243,8 @@ function renderTable() {
   const m = data.meta;
   app.innerHTML = `<section class="statistics-page page-enter">
     <div class="statistics-toolbar"><div><span class="eyebrow">TECHNICAL STATISTICS · LIVE</span><h1>技术统计</h1><p>点击 ＋ 记录一次，点击 − 纠正一次；总数自动相加，数据实时保存。</p></div><div><button class="ghost-button" id="load-statistics-demo" type="button">载入样例比赛</button><button class="ghost-button" id="edit-statistics" type="button">比赛信息与名单</button><button class="ghost-button" id="edit-statistics-scores" type="button">填写比分</button><button class="ghost-button" id="edit-statistics-signatures" type="button">填写签名</button><button class="ghost-button" id="view-statistics-analysis" type="button">分析报告</button><button class="primary-button blue" id="print-statistics" type="button">打印 / 导出 PDF</button></div></div>
-    <div class="statistics-scroll-hint">表格可左右滑动，队员姓名和号码固定在左侧。</div>
+    ${activeSetterHTML(data)}
+    <div class="statistics-scroll-hint">表格可左右滑动，队员姓名和号码固定在左侧。${data.setterStatistics.enabled ? "原表显示全部二传在场时的累计数据。" : ""}</div>
     <div class="statistics-sheet-scroll" role="region" aria-label="B6 技术统计表，可左右滚动" tabindex="0"><article class="statistics-sheet">
       <div class="statistics-paper-heading"><div class="statistics-paper-meta"><div><span>比赛名称</span><b>${esc(m.competition)}</b></div><div><span>场序</span><b>${esc(m.matchNo)}</b></div><div><span>队名</span><b>${esc(selectedTeam(data))}</b></div></div></div>
       <div class="statistics-paper-context"><span>主队：${esc(m.homeTeam)}</span><span>客队：${esc(m.awayTeam)}</span><span>男 ${m.gender === "男子" ? "☑" : "□"}　女 ${m.gender === "女子" ? "☑" : "□"}${m.gender === "混合" ? "　男女混合 ☑" : ""}</span><span>日期：${esc(m.date)}</span><span>比赛城市：${esc(m.city)}</span><span>比赛馆：${esc(m.venue)}</span></div>
@@ -252,7 +259,7 @@ function renderTable() {
     <p class="statistics-table-note">总数 = ${"得分 / 扣死 / 到位 / 拦死 / 好球"} + 一般 + 失误；全队合计自动汇总所有队员。空白队员行需先在名单中填写姓名与号码。</p>
     <p class="statistics-last-action" id="statistics-last-action" role="status" aria-live="polite">已载入本机技术统计记录。</p>
     ${setterTableHTML(data)}
-    <p class="statistics-export-note">打印 / 导出 PDF 将同时包含原始统计表、全队分析与队员明细${data.setterStatistics.enabled ? "，以及二传原始计数与专项分析" : ""}。可先点击“分析报告”预览。</p>
+    <p class="statistics-export-note">打印 / 导出 PDF 将同时包含原始统计表、全队分析与队员明细${data.setterStatistics.enabled ? "，以及二传专项分析与二传在场时进攻对比" : ""}。可先点击“分析报告”预览。</p>
     <div id="statistics-analysis-print" class="statistics-analysis-print">${statisticsReportHTML(data)}</div>
   </section>`;
   app.querySelector("#edit-statistics").onclick = () => { data.screen = "setup"; renderStatistics(); window.scrollTo(0, 0); };
@@ -260,10 +267,16 @@ function renderTable() {
   app.querySelector("#edit-statistics-signatures").onclick = openStatisticsSignatures;
   app.querySelector("#view-statistics-analysis").onclick = openStatisticsAnalysis;
   app.querySelector("#print-statistics").onclick = printStatisticsWithReport;
+  app.querySelector("#active-setter")?.addEventListener("change", event => {
+    if (!setActiveSetter(data, event.target.value)) return;
+    refreshActiveSetter();
+    save();
+  });
   app.querySelector(".statistics-table").addEventListener("click", event => {
     const button = event.target.closest("button[data-delta]");
     if (!button) return;
     const { row, group, outcome, delta } = button.dataset;
+    const attackSetter = group === "attack" ? (Number(delta) > 0 ? currentAttackSetter(data) : latestAttackSetter(data, Number(row), outcome)) : null;
     if (!adjustStatistic(data, Number(row), group, outcome, Number(delta))) return;
     const cell = button.closest("td");
     const p = data.players[Number(row)];
@@ -275,7 +288,9 @@ function renderTable() {
       app.querySelector(`[data-team-total="${group}-${result}"]`).textContent = result === "total" ? groupTotal(totals, group) : totals[group][result];
     }
     const g = GROUPS.find(g => g.key === group);
-    app.querySelector("#statistics-last-action").textContent = `${p.number} 号 ${p.name} · ${g.label}${outcome === "success" ? g.success : outcome === "normal" ? "一般" : "失误"} ${Number(delta) > 0 ? "+1" : "−1"}，当前 ${p.counts[group][outcome]} 次。`;
+    const attributionNote = group === "attack" && data.setterStatistics.enabled ? ` ${Number(delta) > 0 ? "归属" : "撤回归属"}：${attackSetterLabel(data, attackSetter)}。` : "";
+    app.querySelector("#statistics-last-action").textContent = `${p.number} 号 ${p.name} · ${g.label}${outcome === "success" ? g.success : outcome === "normal" ? "一般" : "失误"} ${Number(delta) > 0 ? "+1" : "−1"}，当前 ${p.counts[group][outcome]} 次。${attributionNote}`;
+    if (group === "attack") refreshActiveSetter();
     save();
   });
   app.querySelector(".setter-table")?.addEventListener("click", event => {
@@ -294,6 +309,13 @@ function renderTable() {
     app.querySelector("#statistics-last-action").textContent = `${p.number} 号 ${p.name} · ${g.label}${outcome === "success" ? g.success : outcome === "normal" ? "一般" : "失误"} ${Number(delta) > 0 ? "+1" : "−1"}，当前 ${p.counts[group][outcome]} 次。`;
     save();
   });
+}
+
+function refreshActiveSetter() {
+  const summary = app.querySelector("#active-setter-summary");
+  if (!summary) return;
+  summary.innerHTML = activeSetterSummaryHTML(data);
+  app.querySelector("#active-setter-players").innerHTML = activeSetterPlayersHTML(data);
 }
 
 function refreshAnalysisReport() {

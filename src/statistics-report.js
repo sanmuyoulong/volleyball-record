@@ -2,10 +2,11 @@ import { escapeHTML as esc } from "./ui.js";
 import { selectedTeam, matchResult } from "./statistics-state.js";
 import { buildStatisticsAnalysis, formatPercentage as percent, RATE_LABELS } from "./statistics-analysis.js";
 import { setterReportHTML } from "./setter-report.js";
+import { attackComparisonReportHTML } from "./attack-comparison-view.js";
 
 function header(data, subtitle, page) {
   const m = data.meta;
-  return `<header class="analysis-heading"><div><span class="eyebrow">VOLLEY RECORD · MATCH ANALYSIS</span><h2>赛后分析报告 <small>${subtitle}</small></h2><p>${esc(m.competition)} · ${esc(selectedTeam(data))} · ${esc(m.date)} · 场序 ${esc(m.matchNo)}</p></div><span class="analysis-page-number">${page} / ${data.setterStatistics?.enabled ? 3 : 2}</span></header>`;
+  return `<header class="analysis-heading"><div><span class="eyebrow">VOLLEY RECORD · MATCH ANALYSIS</span><h2>赛后分析报告 <small>${subtitle}</small></h2><p>${esc(m.competition)} · ${esc(selectedTeam(data))} · ${esc(m.date)} · 场序 ${esc(m.matchNo)}</p></div><span class="analysis-page-number">${page} / ${data.setterStatistics?.enabled ? 4 : 2}</span></header>`;
 }
 
 function bar(group) {
@@ -38,5 +39,6 @@ export function statisticsReportHTML(data) {
       <footer class="analysis-footnote analysis-calculation-notes"><p><b>计算说明：</b>成功项占比 = 得分 / 扣死 / 到位 / 拦死 / 好球次数 ÷ 对应技术总次数；失误率 = 该项失误次数 ÷ 该项总次数。总次数 = 成功项 + 一般 + 失误。全队比例按汇总次数计算，不取队员百分比的平均值。</p><p>个人得分 = 发球得分 + 扣死 + 拦死。百分比保留 1 位小数；分母为 0 时显示“—”。零记录队员不参与得分排名。报告覆盖当前已录入的数据，补录或纠正后重新导出即可更新。</p></footer>
     </section>
     ${setterReportHTML(data, header(data, "二传专项分析", 3))}
+    ${attackComparisonReportHTML(data, header(data, "二传在场时进攻对比", 4))}
   </article>`;
 }
