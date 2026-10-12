@@ -1,5 +1,6 @@
 // B6 技术统计数据独立保存，不占用比赛计分和赛事归档的存储槽。
 import { initialSetterStatistics, normalizeSetterStatistics, validateSetterStatistics, hasSetterCounts } from "./setter-statistics.js";
+import { initialAttackAttribution, normalizeAttackAttribution, adjustAttackAttribution, validateAttackAttribution, sampleAttackAttribution } from "./attack-attribution.js";
 export const STATISTICS_KEY = "volley-record-statistics-v1";
 export const GROUPS = [
   { key: "serve", label: "发球", success: "得分" },
@@ -28,7 +29,8 @@ export function initialStatistics() {
     setScores: Array.from({ length: 5 }, () => ["", ""]),
     completedSets: Array(5).fill(false),
     players: Array.from({ length: ROW_COUNT }, () => ({ name: "", number: "", gender: "", counts: emptyCounts() })),
-    setterStatistics: initialSetterStatistics()
+    setterStatistics: initialSetterStatistics(),
+    attackAttribution: initialAttackAttribution(ROW_COUNT)
   };
 }
 
@@ -67,6 +69,7 @@ export function sampleStatistics() {
     { inSystem: { success: 12, normal: 4, error: 1 }, outOfSystem: { success: 6, normal: 5, error: 1 }, secondAttack: { success: 1, normal: 2, error: 0 } }
   ];
   setterRecords.forEach((counts, index) => Object.assign(data.setterStatistics.players[index], { name: names[index], number: String(index + 1), gender: genders[index], counts }));
+  data.attackAttribution = sampleAttackAttribution(data);
   return data;
 }
 
@@ -109,6 +112,7 @@ export function normalizeStatistics(saved) {
     return { name: String(player.name || ""), number: String(player.number || ""), gender: ["男", "女"].includes(player.gender) ? player.gender : "", counts };
   });
   base.setterStatistics = normalizeSetterStatistics(saved.setterStatistics);
+  base.attackAttribution = normalizeAttackAttribution(base, saved.attackAttribution);
   if (base.screen === "table" && validateStatistics(base)) base.screen = "setup";
   return base;
 }
@@ -132,6 +136,7 @@ export function adjustStatistic(data, row, group, outcome, delta) {
   if (!player?.name.trim() || !player.number.trim() || !GROUPS.some(g => g.key === group) || !OUTCOMES.includes(outcome) || ![1, -1].includes(delta)) return false;
   const next = player.counts[group][outcome] + delta;
   if (!Number.isSafeInteger(next) || next < 0) return false;
+  if (group === "attack") adjustAttackAttribution(data, row, outcome, delta);
   player.counts[group][outcome] = next;
   return true;
 }
@@ -176,7 +181,12 @@ export function prepareStatisticsRosterImport(data, imported) {
     return { ...player, counts: previous ? structuredClone(previous.counts) : emptyCounts() };
   });
   while (players.length < ROW_COUNT) players.push({ name: "", number: "", gender: "", counts: emptyCounts() });
-  return { players, teamName: teamName || selectedTeam(data), retainedCount: recorded.length, importedCount: incoming.length };
+  const ledger = normalizeAttackAttribution(data);
+  const attackAttribution = { ...ledger, rows: players.map(p => {
+    const oldRow = p.number.trim() ? data.players.findIndex(old => old.number.trim() && Number(old.number) === Number(p.number) && old.name.trim() === p.name) : -1;
+    return oldRow >= 0 ? structuredClone(ledger.rows[oldRow]) : { success: [], normal: [], error: [] };
+  }) };
+  return { players, attackAttribution, teamName: teamName || selectedTeam(data), retainedCount: recorded.length, importedCount: incoming.length };
 }
 
 export function matchResult(setScores, completedSets) {
@@ -213,7 +223,7 @@ export function validateStatistics(data) {
     filled++;
   }
   if (!filled) return "请至少填写一名队员的姓名和号码。";
-  return validateSetterStatistics(data.setterStatistics, m.gender) || validateStatisticsScores(data.setScores, data.completedSets);
+  return validateSetterStatistics(data.setterStatistics, m.gender) || validateAttackAttribution(data) || validateStatisticsScores(data.setScores, data.completedSets);
 }
 
 export function validateStatisticsScores(setScores, completedSets) {

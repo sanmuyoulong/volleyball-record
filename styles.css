@@ -1097,7 +1097,29 @@ a.module-ready:hover { background: #0f52d5; }
 .analysis-setter-player-table { min-width: 780px; }
 .analysis-setter-player-table th[rowspan] { width: 150px; vertical-align: middle; border-right: 1px solid var(--line); }
 .analysis-setter-details-heading { margin-top: 22px !important; }
+.active-setter-panel { border: 1px solid #bdcde8; border-radius: 12px; background: #f5f8fd; padding: 20px; margin: 0 0 20px; min-width: 0; }
+.active-setter-heading { display: flex; gap: 24px; align-items: center; }
+.active-setter-heading label { flex: 0 0 260px; font-weight: 700; font-size: 14px; }
+.active-setter-heading select { width: 100%; margin-top: 8px; background: white; padding: 10px; border: 1px solid #b6c3d7; border-radius: 6px; font: inherit; }
+.active-setter-heading p, .active-setter-note { color: var(--muted); line-height: 1.8; font-size: 12px; }
+#active-setter-summary { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; padding: 16px 0; }
+#active-setter-details summary { cursor: pointer; font-size: 12px; color: #2358c6; padding: 4px 0 12px; }
+.active-setter-player-table { min-width: 620px; width: 100%; border-collapse: collapse; font-size: 12px; background: white; }
+.active-setter-player-table td, .active-setter-player-table th { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: center; }
+.active-setter-player-table th:first-child { text-align: left; }
+.active-setter-note { margin-bottom: 0; }
+.setter-identity-note { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; }
+.attack-comparison-summary { min-width: 780px; }
+.attack-comparison-detail-heading { margin-top: 22px !important; }
+.attack-comparison-players { min-width: 960px; table-layout: fixed; }
+.attack-comparison-players th:first-child { width: 130px; }
+.attack-comparison-players td span, .attack-comparison-players td small { display: block; font-size: 11px; }
+.attack-comparison-players td small { color: var(--muted); margin-top: 3px; }
+.attack-comparison-players .attack-own { color: var(--muted); font-size: 10px; }
 @media (max-width: 700px) {
+  .active-setter-panel { padding: 14px; }
+  .active-setter-heading { display: block; }
+  .active-setter-heading label { display: block; }
   .analysis-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .analysis-summary > div { padding: 12px; }
   .analysis-summary strong { font-size: 24px; }
@@ -1106,6 +1128,17 @@ a.module-ready:hover { background: #0f52d5; }
   .analysis-section-heading { align-items: flex-start; flex-direction: column; }
 }
 @media print {
+  .active-setter-panel { display: none !important; }
+  .analysis-attack-comparison .analysis-detail-intro { margin-bottom: 2mm; }
+  .analysis-attack-comparison table { min-width: 0; }
+  .attack-comparison-detail-heading { margin-top: 3mm !important; }
+  .analysis-attack-comparison .analysis-small-note { margin: 0 0 2mm; font-size: 7pt; }
+  .attack-comparison-players th:first-child { width: 32mm; }
+  .analysis-attack-comparison .attack-comparison-players td span, .analysis-attack-comparison .attack-comparison-players td small { font-size: 6.5pt; line-height: 1.1; }
+  .analysis-attack-comparison .attack-comparison-players td small { margin-top: .25mm; }
+  .analysis-attack-comparison .attack-comparison-players td, .analysis-attack-comparison .attack-comparison-players th { padding: .35mm 1mm; font-size: 7pt; }
+  .analysis-attack-comparison .attack-comparison-summary td, .analysis-attack-comparison .attack-comparison-summary th { padding-block: .8mm; }
+  .attack-comparison-players .attack-own { font-size: 6.5pt; }
   .statistics-export-note { display: none !important; }
   .statistics-analysis-print { display: block; }
   .analysis-print-page { break-before: page; page-break-before: always; break-inside: avoid; padding: 3mm 1mm 0; }

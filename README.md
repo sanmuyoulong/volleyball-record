@@ -24,6 +24,7 @@ npm run test:statistics-import
 npm run test:statistics-analysis
 npm run test:statistics-demo
 npm run test:setters
+npm run test:attack-attribution
 node scripts/visual-test-chrome.mjs sample-page.png
 npm run test:pdf
 ```
@@ -31,6 +32,8 @@ npm run test:pdf
 规则测试覆盖普通局、三局两胜/五局三胜决胜局、比赛结束、发球轮转和轮次表校验。视觉流程会检查样例载入、加分与撤销、暂停、换人、局结束后的下一局轮次提示，以及下一局计分栏中的历史局比分。
 
 技术统计测试覆盖五组加减与总数、零值保护、名单校验、草稿与表格恢复、备份导入导出、手机横向滚动、A4 横向打印以及两种记录的数据隔离。名单导入测试另外覆盖 CSV / XLSX 预览与确认、模板下载、第一工作表读取、名单重排后保留统计以及错误名单不覆盖数据。
+
+启用二传技术统计后，记录页可选择场上二传。此后原表的扣球加一自动归属所选二传，更换二传不会重置累计数据；减一撤回该队员、该结果最近一次记录，扣回原归属。展开当前二传进攻明细可查看队友表现。分析报告与 PDF 增加各二传在场时队友进攻的汇总及同一队员对比，效率 =（扣死 − 失误）÷ 总进攻次数，并列出扣死率和记录次数。二传本人进攻与独立二次进攻不计入队友效率；旧数据和未选二传时的扣球保留为未归属。
 
 ## 规则版本
 
