@@ -569,9 +569,9 @@ a.module-ready:hover { background: #0f52d5; }
 .point-area { padding: 10px; }
 .point-area-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; font-family: Georgia, serif; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
 .point-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; }
-.point-cell { position: relative; min-width: 18px; height: 21px; display: grid; place-items: center; border: 1px solid #c9cdd1; font-size: 8px; }
+.point-cell { position: relative; min-width: 18px; height: 21px; display: grid; place-items: center; border: 1px solid #c9cdd1; font-size: 8px; overflow: hidden; }
 .point-cell.marked { color: #2f3b49; background: #f2f5f8; font-weight: 800; }
-.point-cell.marked::after { content: ""; position: absolute; width: 135%; height: 1.5px; background: var(--ink); transform: rotate(-48deg); }
+.point-cell.marked::after { content: ""; position: absolute; left: 50%; top: 50%; width: min(80%, 18px); height: 1.5px; background: var(--ink); transform: translate(-50%, -50%) rotate(-48deg); }
 .point-cell.last { border: 2px solid var(--orange); border-radius: 50%; }
 .point-cell.penalty { border: 2px solid var(--danger); border-radius: 50%; }
 .timeout-area { border-left: 1px solid #777; }
