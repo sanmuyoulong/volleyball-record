@@ -25,7 +25,8 @@ if (window.__VOLLEY_TEST__) {
 // 从赛事进入某场比赛时 URL 会带上 ?match=<id>，这里把对应的归档载入活动槽。
 // 不带参数直接访问 /record/ 时行为与独立记分完全一致。
 const requestedMatchId = new URLSearchParams(location.search).get("match");
-if (requestedMatchId) {
+if (window.__managedRecord) replaceState(normalizeState(window.__managedRecord.scoring));
+else if (requestedMatchId) {
   const archived = readMatch(requestedMatchId);
   if (archived) {
     const restored = normalizeState(archived);

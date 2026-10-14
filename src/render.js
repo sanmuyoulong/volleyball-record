@@ -266,6 +266,7 @@ export function bindSetupActions() {
       saveState();
       return;
     }
+    if (window.__managedRecord?.record.manualResult?.setScores.some(pair => pair.some(v => v !== "")) && !confirm("开始正式计分后，共同比分将改为引用计分记录，并从第一局 0:0 开始；旧手动比分仍保留在备份中。确定开始？")) return;
     startMatch();
   });
 }
@@ -318,7 +319,7 @@ export function openRosterImportModal(teamIndex) {
     if (!imported) return;
     const team = state.teams[teamIndex];
     const numbers = imported.players.map(player => player.number);
-    team.name = imported.teamName || team.name;
+    if (!window.__managedRecord) team.name = imported.teamName || team.name;
     team.coach = imported.coach || team.coach;
     team.captain = imported.captain || (numbers.includes(team.captain) ? team.captain : "");
     team.roster = [...imported.players, ...defaultRoster()].slice(0, 14);

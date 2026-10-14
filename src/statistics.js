@@ -13,6 +13,7 @@ import { activeSetterHTML, activeSetterSummaryHTML, activeSetterPlayersHTML, att
 let data;
 
 function save() {
+  if (window.__managedRecord) { window.__managedRecord.save(data); return true; }
   const label = document.querySelector("#save-label");
   try {
     localStorage.setItem(STATISTICS_KEY, JSON.stringify(data));
@@ -28,6 +29,7 @@ function save() {
 export function startStatistics() {
   try { data = normalizeStatistics(JSON.parse(localStorage.getItem(STATISTICS_KEY))); }
   catch { data = initialStatistics(); }
+  if (window.__managedRecord) data = normalizeStatistics(window.__managedRecord.statistics);
   window.addEventListener("beforeprint", refreshAnalysisReport);
   document.querySelector("#data-manager").onclick = openStatisticsData;
   document.querySelector("#reset-app").textContent = "新建技术统计";
@@ -264,6 +266,7 @@ function renderTable() {
   </section>`;
   app.querySelector("#edit-statistics").onclick = () => { data.screen = "setup"; renderStatistics(); window.scrollTo(0, 0); };
   app.querySelector("#edit-statistics-scores").onclick = openStatisticsScores;
+  if (window.__managedRecord?.hasOfficialScore()) app.querySelector("#edit-statistics-scores").textContent = "比分引用计分";
   app.querySelector("#edit-statistics-signatures").onclick = openStatisticsSignatures;
   app.querySelector("#view-statistics-analysis").onclick = openStatisticsAnalysis;
   app.querySelector("#print-statistics").onclick = printStatisticsWithReport;
@@ -323,7 +326,17 @@ function refreshAnalysisReport() {
   if (report) report.innerHTML = statisticsReportHTML(data);
 }
 
-function printStatisticsWithReport() {
+async function printStatisticsWithReport() {
+  if (window.__managedRecord) {
+    try {
+      const latest = await window.__managedRecord.refreshScores();
+      data.setScores = latest.setScores;
+      data.completedSets = latest.completedSets;
+      data.meta.winner = latest.meta.winner;
+      const result = app.querySelector(".statistics-paper-result");
+      if (result) result.innerHTML = paperResultHTML();
+    } catch (error) { toast(error.message, "error"); return; }
+  }
   modalRoot.replaceChildren();
   refreshAnalysisReport();
   const previousTitle = document.title;
@@ -365,6 +378,7 @@ function openStatisticsSignatures() {
 }
 
 function openStatisticsScores() {
+  if (window.__managedRecord?.hasOfficialScore()) { toast("比分引用正式计分，请返回比赛详情进入计分页修改。"); return; }
   const m = data.meta;
   modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal wide" role="dialog" aria-modal="true" aria-labelledby="statistics-scores-title"><div class="modal-head"><div><h2 id="statistics-scores-title">填写比分</h2><p>主队：${esc(m.homeTeam)} · 客队：${esc(m.awayTeam)}。比赛中可随时更新比分，勾选“本局已结束”后计入比赛结果。</p></div><button class="icon-button" id="close-statistics-scores" type="button" aria-label="关闭">×</button></div>
     <form id="statistics-scores-form"><div class="statistics-set-inputs statistics-live-set-inputs">${data.setScores.map((pair, index) => `<fieldset><legend>第 ${index + 1} 局</legend><div class="statistics-score-pair"><input type="number" min="0" max="999" name="set-${index}-0" value="${esc(pair[0])}" aria-label="第 ${index + 1} 局主队比分" placeholder="主队" /><span>:</span><input type="number" min="0" max="999" name="set-${index}-1" value="${esc(pair[1])}" aria-label="第 ${index + 1} 局客队比分" placeholder="客队" /></div><label class="statistics-set-completed"><input type="checkbox" name="completed-${index}" ${data.completedSets[index] ? "checked" : ""} />本局已结束</label></fieldset>`).join("")}</div>
