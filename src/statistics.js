@@ -8,11 +8,16 @@ import { statisticsReportHTML } from "./statistics-report.js";
 import { SETTER_GROUPS, setterGroupTotal, setterTotals, hasSetterCounts, adjustSetterStatistic } from "./setter-statistics.js";
 import { setterTableHTML } from "./setter-table.js";
 import { hasAttributedAttacks, setActiveSetter, currentAttackSetter, latestAttackSetter } from "./attack-attribution.js";
+import { undoCounterChange, latestCounterChange } from "./statistics-history.js";
+import { quickRecorderHTML, captureGroup, capturePlayers, captureRow, handleCaptureKey, historyLabel } from "./statistics-quick.js";
 import { activeSetterHTML, activeSetterSummaryHTML, activeSetterPlayersHTML, attackSetterLabel } from "./attack-comparison-view.js";
 
 let data;
+let numberBuffer = "";
+let captureMessage = "";
 
 function save() {
+  if (window.__managedRecord) { window.__managedRecord.save(data); return true; }
   const label = document.querySelector("#save-label");
   try {
     localStorage.setItem(STATISTICS_KEY, JSON.stringify(data));
@@ -28,7 +33,9 @@ function save() {
 export function startStatistics() {
   try { data = normalizeStatistics(JSON.parse(localStorage.getItem(STATISTICS_KEY))); }
   catch { data = initialStatistics(); }
+  if (window.__managedRecord) data = normalizeStatistics(window.__managedRecord.statistics);
   window.addEventListener("beforeprint", refreshAnalysisReport);
+  document.addEventListener("keydown", onStatisticsKey);
   document.querySelector("#data-manager").onclick = openStatisticsData;
   document.querySelector("#reset-app").textContent = "新建技术统计";
   document.querySelector("#reset-app").onclick = async () => {
@@ -41,6 +48,8 @@ export function startStatistics() {
 }
 
 function renderStatistics() {
+  numberBuffer = "";
+  captureMessage = "";
   modalRoot.replaceChildren();
   if (data.screen === "table") renderTable();
   else renderSetup();
@@ -240,10 +249,12 @@ function totalsHTML() {
 }
 
 function renderTable() {
+  if (!data.setterStatistics.enabled && ["inSystem", "outOfSystem", "secondAttack"].includes(data.capture.group)) data.capture.group = "attack";
   const m = data.meta;
-  app.innerHTML = `<section class="statistics-page page-enter">
+  app.innerHTML = `<section class="statistics-page page-enter ${data.capture.mode === "quick" ? "quick-mode" : ""}">
     <div class="statistics-toolbar"><div><span class="eyebrow">TECHNICAL STATISTICS · LIVE</span><h1>技术统计</h1><p>点击 ＋ 记录一次，点击 − 纠正一次；总数自动相加，数据实时保存。</p></div><div><button class="ghost-button" id="load-statistics-demo" type="button">载入样例比赛</button><button class="ghost-button" id="edit-statistics" type="button">比赛信息与名单</button><button class="ghost-button" id="edit-statistics-scores" type="button">填写比分</button><button class="ghost-button" id="edit-statistics-signatures" type="button">填写签名</button><button class="ghost-button" id="view-statistics-analysis" type="button">分析报告</button><button class="primary-button blue" id="print-statistics" type="button">打印 / 导出 PDF</button></div></div>
     ${activeSetterHTML(data)}
+    <div id="statistics-capture-slot">${quickRecorderHTML(data, numberBuffer, captureMessage)}</div>
     <div class="statistics-scroll-hint">表格可左右滑动，队员姓名和号码固定在左侧。${data.setterStatistics.enabled ? "原表显示全部二传在场时的累计数据。" : ""}</div>
     <div class="statistics-sheet-scroll" role="region" aria-label="B6 技术统计表，可左右滚动" tabindex="0"><article class="statistics-sheet">
       <div class="statistics-paper-heading"><div class="statistics-paper-meta"><div><span>比赛名称</span><b>${esc(m.competition)}</b></div><div><span>场序</span><b>${esc(m.matchNo)}</b></div><div><span>队名</span><b>${esc(selectedTeam(data))}</b></div></div></div>
@@ -264,6 +275,7 @@ function renderTable() {
   </section>`;
   app.querySelector("#edit-statistics").onclick = () => { data.screen = "setup"; renderStatistics(); window.scrollTo(0, 0); };
   app.querySelector("#edit-statistics-scores").onclick = openStatisticsScores;
+  if (window.__managedRecord?.hasOfficialScore()) app.querySelector("#edit-statistics-scores").textContent = "比分引用计分";
   app.querySelector("#edit-statistics-signatures").onclick = openStatisticsSignatures;
   app.querySelector("#view-statistics-analysis").onclick = openStatisticsAnalysis;
   app.querySelector("#print-statistics").onclick = printStatisticsWithReport;
@@ -272,42 +284,123 @@ function renderTable() {
     refreshActiveSetter();
     save();
   });
+  bindCaptureControls();
   app.querySelector(".statistics-table").addEventListener("click", event => {
     const button = event.target.closest("button[data-delta]");
     if (!button) return;
     const { row, group, outcome, delta } = button.dataset;
-    const attackSetter = group === "attack" ? (Number(delta) > 0 ? currentAttackSetter(data) : latestAttackSetter(data, Number(row), outcome)) : null;
-    if (!adjustStatistic(data, Number(row), group, outcome, Number(delta))) return;
-    const cell = button.closest("td");
-    const p = data.players[Number(row)];
-    cell.querySelector(".statistics-count").textContent = p.counts[group][outcome];
-    cell.querySelector('[data-delta="-1"]').disabled = p.counts[group][outcome] === 0;
-    app.querySelector(`[data-row-total="${row}-${group}"]`).textContent = groupTotal(p.counts, group);
-    const totals = teamTotals(data.players);
-    for (const result of [...OUTCOMES, "total"]) {
-      app.querySelector(`[data-team-total="${group}-${result}"]`).textContent = result === "total" ? groupTotal(totals, group) : totals[group][result];
-    }
-    const g = GROUPS.find(g => g.key === group);
-    const attributionNote = group === "attack" && data.setterStatistics.enabled ? ` ${Number(delta) > 0 ? "归属" : "撤回归属"}：${attackSetterLabel(data, attackSetter)}。` : "";
-    app.querySelector("#statistics-last-action").textContent = `${p.number} 号 ${p.name} · ${g.label}${outcome === "success" ? g.success : outcome === "normal" ? "一般" : "失误"} ${Number(delta) > 0 ? "+1" : "−1"}，当前 ${p.counts[group][outcome]} 次。${attributionNote}`;
-    if (group === "attack") refreshActiveSetter();
-    save();
+    recordStatistic("player", Number(row), group, outcome, Number(delta));
   });
   app.querySelector(".setter-table")?.addEventListener("click", event => {
     const button = event.target.closest("button[data-setter-row]");
     if (!button) return;
     const { setterRow, group, outcome, delta } = button.dataset;
-    if (!adjustSetterStatistic(data, Number(setterRow), group, outcome, Number(delta))) return;
-    const p = data.setterStatistics.players[Number(setterRow)];
-    const cell = button.closest("td");
-    cell.querySelector(".statistics-count").textContent = p.counts[group][outcome];
-    cell.querySelector('[data-delta="-1"]').disabled = p.counts[group][outcome] === 0;
-    app.querySelector(`[data-setter-row-total="${setterRow}-${group}"]`).textContent = setterGroupTotal(p.counts, group);
-    const totals = setterTotals(data.setterStatistics.players);
-    for (const o of ["success", "normal", "error", "total"]) app.querySelector(`[data-setter-team-total="${group}-${o}"]`).textContent = o === "total" ? setterGroupTotal(totals, group) : totals[group][o];
-    const g = SETTER_GROUPS.find(g => g.key === group);
-    app.querySelector("#statistics-last-action").textContent = `${p.number} 号 ${p.name} · ${g.label}${outcome === "success" ? g.success : outcome === "normal" ? "一般" : "失误"} ${Number(delta) > 0 ? "+1" : "−1"}，当前 ${p.counts[group][outcome]} 次。`;
-    save();
+    recordStatistic("setter", Number(setterRow), group, outcome, Number(delta));
+  });
+}
+
+function updateCounterCells(kind, row, group) {
+  const setter = kind === "setter", p = setter ? data.setterStatistics.players[row] : data.players[row];
+  const totals = setter ? setterTotals(data.setterStatistics.players) : teamTotals(data.players);
+  const rowAttr = setter ? "setter-row" : "row";
+  for (const outcome of OUTCOMES) {
+    const plus = app.querySelector(`button[data-${rowAttr}="${row}"][data-group="${group}"][data-outcome="${outcome}"][data-delta="1"]`);
+    const cell = plus?.closest("td");
+    if (cell) {
+      cell.querySelector(".statistics-count").textContent = p.counts[group][outcome];
+      cell.querySelector('[data-delta="-1"]').disabled = p.counts[group][outcome] === 0;
+    }
+  }
+  const totalKey = setter ? "setter-row-total" : "row-total";
+  const total = app.querySelector(`[data-${totalKey}="${row}-${group}"]`);
+  if (total) total.textContent = setter ? setterGroupTotal(p.counts, group) : groupTotal(p.counts, group);
+  for (const outcome of [...OUTCOMES, "total"]) {
+    const cell = app.querySelector(`[data-${setter ? "setter-team-total" : "team-total"}="${group}-${outcome}"]`);
+    if (cell) cell.textContent = outcome === "total" ? (setter ? setterGroupTotal(totals, group) : groupTotal(totals, group)) : totals[group][outcome];
+  }
+  if (group === "attack") refreshActiveSetter();
+}
+
+function recordStatistic(kind, row, group, outcome, delta) {
+  const attackSetter = group === "attack" ? (delta > 0 ? currentAttackSetter(data) : latestAttackSetter(data, row, outcome)) : null;
+  const adjust = kind === "setter" ? adjustSetterStatistic : adjustStatistic;
+  if (!adjust(data, row, group, outcome, delta)) return false;
+  const entry = latestCounterChange(data);
+  captureMessage = historyLabel(entry) + (group === "attack" && data.setterStatistics.enabled ? ` · ${delta > 0 ? "归属" : "撤回归属"}：${attackSetterLabel(data, attackSetter)}` : "");
+  app.querySelector("#statistics-last-action").textContent = captureMessage;
+  updateCounterCells(kind, row, group);
+  refreshCaptureControls();
+  save();
+  return true;
+}
+
+function undoLastStatistic() {
+  const result = undoCounterChange(data);
+  if (result.error) { captureMessage = result.error; refreshCaptureControls(); return; }
+  captureMessage = `已撤销：${historyLabel(result.entry)}。${result.entry.group === "attack" ? "二传归属同步恢复，当前场上二传不变。" : ""}`;
+  app.querySelector("#statistics-last-action").textContent = captureMessage;
+  updateCounterCells(result.entry.kind, result.row, result.entry.group);
+  refreshCaptureControls();
+  save();
+}
+
+function refreshCaptureControls() {
+  const slot = app.querySelector("#statistics-capture-slot");
+  if (!slot) return;
+  const focused = slot.contains(document.activeElement);
+  slot.innerHTML = quickRecorderHTML(data, numberBuffer, captureMessage);
+  bindCaptureControls();
+  if (focused && data.capture.mode === "quick") focusCapture();
+}
+function focusCapture() { app.querySelector("#quick-keyboard-area")?.focus({ preventScroll: true }); }
+function changeCaptureGroup(group) {
+  if (numberBuffer) { captureMessage = "请先按 Enter 确认号码，或按 Esc 取消。"; refreshCaptureControls(); return; }
+  if (["inSystem", "outOfSystem", "secondAttack"].includes(group) && !data.setterStatistics.enabled) {
+    captureMessage = "请先在赛前信息中启用并填写二传技术统计。"; refreshCaptureControls(); return;
+  }
+  data.capture.group = group;
+  captureMessage = "已切换项目，请核对当前队员。";
+  refreshCaptureControls(); save();
+}
+function addCaptureOutcome(outcome) {
+  if (numberBuffer) { captureMessage = "号码尚未确认，请先按 Enter；不会记录到上一名队员。"; refreshCaptureControls(); return; }
+  const row = captureRow(data);
+  if (row < 0) { captureMessage = "请先输入有效队员号码并按 Enter，或点击队员卡片。"; refreshCaptureControls(); return; }
+  recordStatistic(captureGroup(data).kind, row, data.capture.group, outcome, 1);
+}
+function bindCaptureControls() {
+  app.querySelectorAll("[data-capture-mode]").forEach(button => button.onclick = () => {
+    data.capture.mode = button.dataset.captureMode;
+    renderStatistics();
+    if (data.capture.mode === "quick") focusCapture();
+  });
+  app.querySelectorAll("[data-capture-group]").forEach(button => button.onclick = () => { changeCaptureGroup(button.dataset.captureGroup); focusCapture(); });
+  app.querySelectorAll("[data-capture-player]").forEach(button => button.onclick = () => {
+    data.capture.selectedNumber = capturePlayers(data)[Number(button.dataset.capturePlayer)].number;
+    numberBuffer = ""; captureMessage = "已选中队员。"; refreshCaptureControls(); focusCapture(); save();
+  });
+  app.querySelectorAll("[data-capture-outcome]").forEach(button => button.onclick = () => { addCaptureOutcome(button.dataset.captureOutcome); focusCapture(); });
+  app.querySelector("[data-capture-focus]")?.addEventListener("click", focusCapture);
+  app.querySelector("#undo-statistic").onclick = undoLastStatistic;
+}
+function onStatisticsKey(event) {
+  if (data?.screen !== "table" || data.capture.mode !== "quick" || document.hidden || event.defaultPrevented
+    || event.target.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')
+    || document.querySelector(".modal-backdrop")) return;
+  handleCaptureKey(event, {
+    undo: undoLastStatistic,
+    digit(key) { if (numberBuffer.length < 3) numberBuffer += key; captureMessage = "输入号码后按 Enter 确认。"; refreshCaptureControls(); },
+    select() {
+      if (!numberBuffer) return;
+      const player = capturePlayers(data).find(p => p.name && p.number && Number(p.number) === Number(numberBuffer));
+      if (!player) captureMessage = `当前项目的名单中没有 ${numberBuffer} 号队员。请修改号码或按 Esc 取消。`;
+      else { data.capture.selectedNumber = player.number; numberBuffer = ""; captureMessage = `已选中 ${player.number}号 ${player.name}。`; save(); }
+      refreshCaptureControls();
+    },
+    backspace() { numberBuffer = numberBuffer.slice(0, -1); refreshCaptureControls(); },
+    cancel() { numberBuffer = ""; captureMessage = "已取消待输入号码。"; refreshCaptureControls(); },
+    group: changeCaptureGroup,
+    outcome: addCaptureOutcome
   });
 }
 
@@ -323,7 +416,17 @@ function refreshAnalysisReport() {
   if (report) report.innerHTML = statisticsReportHTML(data);
 }
 
-function printStatisticsWithReport() {
+async function printStatisticsWithReport() {
+  if (window.__managedRecord) {
+    try {
+      const latest = await window.__managedRecord.refreshScores();
+      data.setScores = latest.setScores;
+      data.completedSets = latest.completedSets;
+      data.meta.winner = latest.meta.winner;
+      const result = app.querySelector(".statistics-paper-result");
+      if (result) result.innerHTML = paperResultHTML();
+    } catch (error) { toast(error.message, "error"); return; }
+  }
   modalRoot.replaceChildren();
   refreshAnalysisReport();
   const previousTitle = document.title;
@@ -365,6 +468,7 @@ function openStatisticsSignatures() {
 }
 
 function openStatisticsScores() {
+  if (window.__managedRecord?.hasOfficialScore()) { toast("比分引用正式计分，请返回比赛详情进入计分页修改。"); return; }
   const m = data.meta;
   modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal wide" role="dialog" aria-modal="true" aria-labelledby="statistics-scores-title"><div class="modal-head"><div><h2 id="statistics-scores-title">填写比分</h2><p>主队：${esc(m.homeTeam)} · 客队：${esc(m.awayTeam)}。比赛中可随时更新比分，勾选“本局已结束”后计入比赛结果。</p></div><button class="icon-button" id="close-statistics-scores" type="button" aria-label="关闭">×</button></div>
     <form id="statistics-scores-form"><div class="statistics-set-inputs statistics-live-set-inputs">${data.setScores.map((pair, index) => `<fieldset><legend>第 ${index + 1} 局</legend><div class="statistics-score-pair"><input type="number" min="0" max="999" name="set-${index}-0" value="${esc(pair[0])}" aria-label="第 ${index + 1} 局主队比分" placeholder="主队" /><span>:</span><input type="number" min="0" max="999" name="set-${index}-1" value="${esc(pair[1])}" aria-label="第 ${index + 1} 局客队比分" placeholder="客队" /></div><label class="statistics-set-completed"><input type="checkbox" name="completed-${index}" ${data.completedSets[index] ? "checked" : ""} />本局已结束</label></fieldset>`).join("")}</div>

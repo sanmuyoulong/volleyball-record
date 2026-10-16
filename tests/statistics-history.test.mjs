@@ -1,0 +1,82 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { initialStatistics, sampleStatistics, normalizeStatistics, adjustStatistic, prepareStatisticsRosterImport } from "../src/statistics-state.js";
+import { adjustSetterStatistic } from "../src/setter-statistics.js";
+import { setActiveSetter } from "../src/attack-attribution.js";
+import { undoCounterChange, HISTORY_LIMIT } from "../src/statistics-history.js";
+import { handleCaptureKey } from "../src/statistics-keyboard.js";
+
+test("旧记录默认原表且没有伪造操作历史，新加减统一记录与撤销", () => {
+  const data = sampleStatistics();
+  delete data.capture; delete data.counterHistory;
+  const restored = normalizeStatistics(data);
+  assert.equal(restored.capture.mode, "table"); assert.deepEqual(restored.counterHistory, []);
+  const old = restored.players[0].counts.serve.success;
+  assert.ok(adjustStatistic(restored, 0, "serve", "success", 1));
+  assert.equal(restored.counterHistory.length, 1);
+  assert.equal(undoCounterChange(restored).entry.delta, 1);
+  assert.equal(restored.players[0].counts.serve.success, old);
+  assert.ok(undoCounterChange(restored).error);
+});
+test("撤销攻击加一和减一完整恢复原归属，不改当前二传，重载后仍可撤销", () => {
+  const data = sampleStatistics();
+  setActiveSetter(data, "0");
+  const old = structuredClone(data.attackAttribution.rows[2].success), baseline = data.players[2].counts.attack.success;
+  adjustStatistic(data, 2, "attack", "success", 1);
+  setActiveSetter(data, "1");
+  const restored = normalizeStatistics(JSON.parse(JSON.stringify(data)));
+  assert.ok(undoCounterChange(restored).entry);
+  assert.equal(restored.players[2].counts.attack.success, baseline);
+  assert.deepEqual(restored.attackAttribution.rows[2].success, old);
+  assert.equal(restored.attackAttribution.activeSetter, 1);
+  adjustStatistic(restored, 2, "attack", "success", -1);
+  assert.ok(undoCounterChange(restored).entry);
+  assert.deepEqual(restored.attackAttribution.rows[2].success, old);
+});
+test("原表与二传共用撤销顺序，独立二次得分不影响主表", () => {
+  const data = sampleStatistics(), baseline = data.setterStatistics.players[0].counts.secondAttack.success;
+  const attack = data.players[0].counts.attack.success;
+  adjustStatistic(data, 0, "serve", "normal", 1);
+  adjustSetterStatistic(data, 0, "secondAttack", "success", 1);
+  assert.equal(undoCounterChange(data).entry.kind, "setter");
+  assert.equal(data.setterStatistics.players[0].counts.secondAttack.success, baseline);
+  assert.equal(data.players[0].counts.attack.success, attack);
+  assert.equal(undoCounterChange(data).entry.group, "serve");
+});
+test("名单重排按身份撤销；身份变化、异常计数与更换二传号码时拒绝覆盖", () => {
+  const data = sampleStatistics();
+  adjustStatistic(data, 0, "serve", "success", 1);
+  const imported = prepareStatisticsRosterImport(data, { players: [...data.players].reverse(), teamName: data.meta.homeTeam });
+  data.players = imported.players; data.attackAttribution = imported.attackAttribution;
+  assert.equal(undoCounterChange(data).row, 13);
+  adjustStatistic(data, 0, "serve", "success", 1);
+  data.players[0].name = "另一位队员";
+  assert.ok(undoCounterChange(data).error);
+  const other = sampleStatistics(); setActiveSetter(other, "0");
+  adjustStatistic(other, 2, "attack", "success", -1);
+  other.setterStatistics.players[0].number = "99";
+  assert.ok(undoCounterChange(other).error);
+});
+test("历史有上限、非法操作不入历史、损坏历史不影响统计数值", () => {
+  const data = initialStatistics(); data.players[0].name = "队员"; data.players[0].number = "0";
+  assert.equal(adjustStatistic(data, 0, "serve", "error", -1), false);
+  assert.equal(data.counterHistory.length, 0);
+  for (let i = 0; i < HISTORY_LIMIT + 10; i++) adjustStatistic(data, 0, "serve", "normal", 1);
+  assert.equal(data.counterHistory.length, HISTORY_LIMIT);
+  const count = data.players[0].counts.serve.normal;
+  data.counterHistory.push({ kind: "player", before: -1, after: 9000 });
+  const restored = normalizeStatistics(data);
+  assert.equal(restored.players[0].counts.serve.normal, count);
+  assert.equal(restored.counterHistory.length, HISTORY_LIMIT);
+});
+test("键盘长按不重复计数，输入法组合和浏览器快捷键不触发统计", () => {
+  const calls = [], actions = Object.fromEntries(["undo", "digit", "select", "backspace", "cancel", "group", "outcome"].map(k => [k, value => calls.push([k, value])]));
+  const event = (key, extra = {}) => ({ key, preventDefault() {}, ...extra });
+  handleCaptureKey(event("j"), actions); handleCaptureKey(event("j", { repeat: true }), actions);
+  assert.deepEqual(calls, [["outcome", "success"]]);
+  assert.equal(handleCaptureKey(event("j", { isComposing: true }), actions), false);
+  assert.equal(handleCaptureKey(event("r", { ctrlKey: true }), actions), false);
+  assert.equal(handleCaptureKey(event("z", { ctrlKey: true, isComposing: true }), actions), false);
+  handleCaptureKey(event("z", { metaKey: true }), actions);
+  assert.equal(calls.at(-1)[0], "undo");
+});

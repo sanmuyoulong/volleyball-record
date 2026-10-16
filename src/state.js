@@ -86,8 +86,10 @@ export function initialState() {
 }
 
 export function restoreState() {
+  if (globalThis.window?.__managedRecord?.mode === "score") return normalizeState(window.__managedRecord.scoring);
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (saved?.matchId) return initialState();
     if (saved?.selectedRule && saved?.meta && Array.isArray(saved.teams)) return normalizeState(saved);
   } catch {}
   return initialState();
@@ -133,6 +135,7 @@ export function replaceState(nextState) {
 }
 
 export function saveState() {
+  if (globalThis.window?.__managedRecord) return window.__managedRecord.save(state);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   syncActiveMatch();
   const label = document.querySelector("#save-label");
@@ -158,7 +161,7 @@ export function recoverySnapshots() {
 }
 
 export function saveRecoverySnapshot(label, force = false) {
-  if (!state.match) return;
+  if (!state.match || globalThis.window?.__managedRecord) return;
   const now = Date.now();
   if (!force && now - lastRecoverySnapshotAt < 15000) return;
   lastRecoverySnapshotAt = now;
@@ -249,6 +252,7 @@ export function matchSummary(source = state) {
 // 每次保存都把当前比赛写回归档，并刷新所属赛事里的摘要。
 // 没有 matchId 表示这是一场独立比赛（不归属任何赛事），直接跳过。
 export function syncActiveMatch() {
+  if (globalThis.window?.__managedRecord) return;
   if (!state.matchId) return;
   const active = activeMatch();
   writeMatch(state.matchId, state);

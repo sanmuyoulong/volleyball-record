@@ -19,6 +19,8 @@ await cp(join(projectRoot, "assets"), join(clientRoot, "assets"), { recursive: t
 await cp(join(projectRoot, "record"), join(clientRoot, "record"), { recursive: true });
 await cp(join(projectRoot, "tournaments"), join(clientRoot, "tournaments"), { recursive: true });
 
+for (const page of ["console", "login"]) await cp(join(projectRoot, page), join(clientRoot, page), { recursive: true });
+
 const worker = `export default {
   async fetch(request, env) {
     if (!env.ASSETS) {

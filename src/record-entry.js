@@ -1,11 +1,16 @@
 import { app, escapeHTML } from "./ui.js";
 import { STATISTICS_KEY, normalizeStatistics, selectedTeam } from "./statistics-state.js";
 
+import { prepareManagedRecord, attachManagedControls } from "./managed-record.js";
+
 const query = new URLSearchParams(location.search);
 const mode = query.get("mode");
-const scoring = mode === "score" || query.has("match");
+const scoring = mode === "score" || (query.has("match") && mode !== "statistics");
 
-if (scoring || mode === "statistics") {
+let ready = true;
+try { ready = await prepareManagedRecord(); } catch (error) { ready = false; app.innerHTML = `<section class="console-panel"><h1>无法载入比赛</h1><p>${escapeHTML(error.message)}</p><a href="../console/?view=matches">返回控制台</a></section>`; }
+
+if (!ready) { /* Guard resolves before importing recording engines. */ } else if (scoring || mode === "statistics") {
   const actions = document.querySelector(".topbar-actions");
   const back = document.createElement("a");
   back.className = "text-button record-mode-back";
@@ -16,6 +21,11 @@ if (scoring || mode === "statistics") {
   else {
     const { startStatistics } = await import("./statistics.js");
     startStatistics();
+  }
+  attachManagedControls();
+  if (!window.__managedRecord) {
+    const adopt = document.createElement("a"); adopt.className = "ghost-button compact"; adopt.textContent = "另存到控制台";
+    adopt.href = `../console/?view=adopt&kind=${scoring ? "score" : "statistics"}`; actions.append(adopt);
   }
 } else {
   document.querySelector(".topbar-actions").hidden = true;

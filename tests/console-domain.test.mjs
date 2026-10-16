@@ -1,0 +1,52 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { newMatch, statsData, scoreData, commonScores, finalResult, validateFinal, locked } from "../src/console-domain.js";
+import { validateBackup } from "../src/console-repository.js";
+const teams = () => ["主队", "客队"].map((name, i) => ({ id: `team-${i}`, name, roster: [{ name: "队员", number: "1", gender: "男" }] }));
+const match = () => newMatch({ competition: "联赛", gender: "男子", matchFormat: "3" }, teams());
+test("比赛与名单快照独立，主客队统计独立，比分共用且正式计分优先", () => {
+  const t = teams(), m = newMatch({ competition: "联赛" }, t);
+  t[0].roster[0].name = "库中修改";
+  assert.equal(m.teams[0].roster[0].name, "队员");
+  const h = statsData(m, "home"), a = statsData(m, "away");
+  h.players[0].counts.attack.success = 9;
+  assert.equal(a.players[0].counts.attack.success, 0);
+  m.manualResult = { setScores: [["25", "20"], ["25", "21"], ["", ""], ["", ""], ["", ""]], completedSets: [true, true, false, false, false], winner: "home" };
+  assert.equal(statsData(m, "away").setScores[0][0], "25");
+  m.scoring.match = { sets: [{ score: [1, 2], ended: false }], ended: false };
+  assert.equal(commonScores(m).setScores[0][0], "1");
+  assert.equal(commonScores(m).winner, "");
+  assert.equal(m.manualResult.setScores[0][0], "25");
+});
+test("积分只纳入已确认结果；三局两胜的提前结束、局顺序和延长局校验", () => {
+  const m = match();
+  m.manualResult = { setScores: [["25", "20"], ["27", "25"], ["", ""], ["", ""], ["", ""]], completedSets: [true, true, false, false, false], winner: "" };
+  assert.equal(finalResult(m), null);
+  m.manualResult = validateFinal(m); m.manualConfirmed = true;
+  assert.equal(finalResult(m).homeSets, 2);
+  m.archived = true; assert.equal(finalResult(m), null); m.archived = false;
+  m.manualResult.setScores[1] = ["30", "20"];
+  assert.throws(() => validateFinal(m), /比分不符合/);
+  m.manualResult.setScores[1] = ["25", "27"]; m.manualResult.setScores[2] = ["15", "13"]; m.manualResult.completedSets[2] = true; m.manualResult.winner = "home";
+  assert.equal(validateFinal(m).winner, "home");
+  m.manualResult.setScores[3] = ["25", "0"]; m.manualResult.completedSets[3] = true;
+  assert.throws(() => validateFinal(m), /顺序或局数/);
+});
+test("正式计分结束确认决定赛果，正在领先不计入积分", () => {
+  const m = match();
+  m.scoring.match = { ended: false, sets: [{ score: [25, 10], ended: true, winner: 0 }] };
+  assert.equal(finalResult(m), null);
+  m.scoring.match.ended = true;
+  assert.equal(finalResult(m).winnerTeamId, "team-0");
+  assert.equal(locked(m), true);
+  assert.equal(scoreData(m).matchId, m.id);
+});
+test("备份拒绝失效赛事引用、重复编号与缺失比赛数据", () => {
+  const m = match();
+  const backup = { type: "volley-console-backup", version: 1, data: { teams: [], events: [], matches: [m], meta: [] } };
+  validateBackup(backup);
+  m.tournamentId = "not-existing";
+  assert.throws(() => validateBackup(backup), /赛事缺失/);
+  m.tournamentId = null; backup.data.matches.push(m);
+  assert.throws(() => validateBackup(backup), /重复编号/);
+});

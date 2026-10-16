@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build-sites.mjs",
+    "build:offline": "node scripts/build-offline.mjs",
     "dev": "node server.mjs",
     "test": "node --test tests/*.test.mjs",
     "test:advanced": "node scripts/advanced-flow-check.mjs",
@@ -14,7 +15,13 @@
     "test:statistics-demo": "node scripts/statistics-demo-check.mjs",
     "test:setters": "node scripts/setter-statistics-check.mjs",
     "test:attack-attribution": "node scripts/attack-attribution-check.mjs",
+    "test:offline": "node scripts/offline-check.mjs",
     "test:import-end": "node scripts/roster-import-match-end-check.mjs",
-    "test:pdf": "node scripts/export-pdf-check.mjs output/pdf/volleyball-match-record-sample.pdf"
+    "test:pdf": "node scripts/export-pdf-check.mjs output/pdf/volleyball-match-record-sample.pdf",
+    "test:console": "node scripts/console-flow-check.mjs",
+    "test:console:offline": "node scripts/console-flow-check.mjs --offline",
+    "test:console:storage": "node scripts/console-storage-check.mjs",
+    "test:quick": "node scripts/statistics-quick-check.mjs",
+    "test:quick:offline": "node scripts/statistics-quick-check.mjs --offline"
   }
 }

@@ -1,3 +1,4 @@
+import { normalizeHistory, recordCounterChange } from "./statistics-history.js";
 // B6 技术统计数据独立保存，不占用比赛计分和赛事归档的存储槽。
 import { initialSetterStatistics, normalizeSetterStatistics, validateSetterStatistics, hasSetterCounts } from "./setter-statistics.js";
 import { initialAttackAttribution, normalizeAttackAttribution, adjustAttackAttribution, validateAttackAttribution, sampleAttackAttribution } from "./attack-attribution.js";
@@ -20,6 +21,8 @@ export function initialStatistics() {
   const now = new Date();
   return {
     version: 1,
+    capture: { mode: "table", group: "attack", selectedNumber: "" },
+    counterHistory: [],
     screen: "setup",
     meta: {
       competition: "", matchNo: "", homeTeam: "", awayTeam: "", teamSide: "home",
@@ -111,6 +114,8 @@ export function normalizeStatistics(saved) {
     }
     return { name: String(player.name || ""), number: String(player.number || ""), gender: ["男", "女"].includes(player.gender) ? player.gender : "", counts };
   });
+  base.capture = { mode: saved.capture?.mode === "quick" ? "quick" : "table", group: [...GROUPS.map(g => g.key), "inSystem", "outOfSystem", "secondAttack"].includes(saved.capture?.group) ? saved.capture.group : "attack", selectedNumber: /^\d{1,3}$/.test(String(saved.capture?.selectedNumber || "")) ? String(saved.capture.selectedNumber) : "" };
+  base.counterHistory = normalizeHistory(saved.counterHistory);
   base.setterStatistics = normalizeSetterStatistics(saved.setterStatistics);
   base.attackAttribution = normalizeAttackAttribution(base, saved.attackAttribution);
   if (base.screen === "table" && validateStatistics(base)) base.screen = "setup";
@@ -136,8 +141,13 @@ export function adjustStatistic(data, row, group, outcome, delta) {
   if (!player?.name.trim() || !player.number.trim() || !GROUPS.some(g => g.key === group) || !OUTCOMES.includes(outcome) || ![1, -1].includes(delta)) return false;
   const next = player.counts[group][outcome] + delta;
   if (!Number.isSafeInteger(next) || next < 0) return false;
+  const before = player.counts[group][outcome];
+  const ledger = group === "attack" ? normalizeAttackAttribution(data) : null;
+  const beforeRuns = ledger ? JSON.parse(JSON.stringify(ledger.rows[row][outcome])) : null;
   if (group === "attack") adjustAttackAttribution(data, row, outcome, delta);
   player.counts[group][outcome] = next;
+  recordCounterChange(data, { kind: "player", name: player.name, number: player.number, group, outcome, delta, before, after: next,
+    ...(ledger ? { beforeRuns, afterRuns: JSON.parse(JSON.stringify(data.attackAttribution.rows[row][outcome])), setterNumbers: [...data.attackAttribution.setterNumbers] } : {}) });
   return true;
 }
 
