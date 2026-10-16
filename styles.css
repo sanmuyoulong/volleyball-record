@@ -51,7 +51,9 @@ button { color: inherit; }
 .topbar {
   height: 72px;
   padding: 0 clamp(20px, 4vw, 64px);
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  column-gap: 16px;
   align-items: center;
   justify-content: space-between;
   background: rgba(255, 255, 255, 0.88);
@@ -93,7 +95,10 @@ button { color: inherit; }
 .save-state { gap: 7px; padding: 6px 12px; color: var(--muted); font-size: 12px; font-weight: 600; background: var(--surface); border: 1px solid var(--line); border-radius: 99px; }
 .save-state i { width: 7px; height: 7px; border-radius: 50%; background: #12b76a; box-shadow: 0 0 0 3px #e8f8ef; }
 
-.product-nav { display: flex; align-items: center; gap: 4px; }
+.topbar > .brand { justify-self: start; }
+.topbar > .product-nav { grid-column: 2; justify-self: center; }
+.topbar > .topbar-actions, .topbar > .topbar-cta { grid-column: 3; justify-self: end; }
+.product-nav { display: flex; align-items: center; justify-content: center; gap: 4px; }
 .product-nav a {
   position: relative;
   padding: 10px 13px;
@@ -744,8 +749,13 @@ a.module-ready:hover { background: #0f52d5; }
   .operation-card:last-child { grid-column: span 1; }
 }
 
+@media (min-width: 821px) and (max-width: 1199px) {
+  .topbar { display: flex; flex-wrap: wrap; height: auto; min-height: 72px; padding-block: 10px; gap: 8px 16px; }
+  .topbar > .product-nav { order: 3; width: 100%; padding-top: 5px; border-top: 1px solid var(--soft-line); }
+}
+
 @media (max-width: 820px) {
-  .topbar { height: auto; min-height: 72px; padding: 10px 18px; flex-wrap: wrap; gap: 8px 16px; }
+  .topbar { display: flex; height: auto; min-height: 72px; padding: 10px 18px; flex-wrap: wrap; gap: 8px 16px; }
   .product-nav { order: 3; width: 100%; overflow-x: auto; padding-top: 5px; border-top: 1px solid var(--soft-line); }
   .product-nav a { flex: 0 0 auto; }
   .save-state { display: none; }
