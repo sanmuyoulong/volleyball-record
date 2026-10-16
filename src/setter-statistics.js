@@ -1,3 +1,4 @@
+import { initializeSetStatistics, statisticsSetView, commitSetView } from "./statistics-sets.js";
 import { recordCounterChange } from "./statistics-history.js";
 export const SETTER_LIMIT = 4;
 export const SETTER_GROUPS = [
@@ -44,14 +45,19 @@ export function setterTotals(players) {
 }
 
 export function adjustSetterStatistic(data, row, group, outcome, delta) {
-  const setters = data.setterStatistics;
+  if (!data.setStatistics?.buckets?.["1"]) initializeSetStatistics(data);
+  const setKey = data.setStatistics.selected;
+  if (setKey === "all") return false;
+  const view = statisticsSetView(data);
+  const setters = view.setterStatistics;
   const p = setters?.players?.[row];
   if (!setters?.enabled || !p?.name.trim() || !p.number.trim() || !SETTER_GROUPS.some(g => g.key === group) || !OUTCOMES.includes(outcome) || ![1, -1].includes(delta)) return false;
   const next = p.counts[group][outcome] + delta;
   if (!Number.isSafeInteger(next) || next < 0) return false;
   const before = p.counts[group][outcome];
   p.counts[group][outcome] = next;
-  recordCounterChange(data, { kind: "setter", name: p.name, number: p.number, group, outcome, delta, before, after: next });
+  recordCounterChange(data, { setKey, kind: "setter", name: p.name, number: p.number, group, outcome, delta, before, after: next });
+  commitSetView(data, view);
   return true;
 }
 

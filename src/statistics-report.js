@@ -1,3 +1,4 @@
+import { recordedSetKeys, statisticsSetView, setLabel, bucketHasCounts } from "./statistics-sets.js";
 import { escapeHTML as esc } from "./ui.js";
 import { selectedTeam, matchResult } from "./statistics-state.js";
 import { buildStatisticsAnalysis, formatPercentage as percent, RATE_LABELS } from "./statistics-analysis.js";
@@ -6,7 +7,8 @@ import { attackComparisonReportHTML } from "./attack-comparison-view.js";
 
 function header(data, subtitle, page) {
   const m = data.meta;
-  return `<header class="analysis-heading"><div><span class="eyebrow">VOLLEY RECORD · MATCH ANALYSIS</span><h2>赛后分析报告 <small>${subtitle}</small></h2><p>${esc(m.competition)} · ${esc(selectedTeam(data))} · ${esc(m.date)} · 场序 ${esc(m.matchNo)}</p></div><span class="analysis-page-number">${page} / ${data.setterStatistics?.enabled ? 4 : 2}</span></header>`;
+  const context = data.reportContext || { label: "全场", offset: 0, total: data.setterStatistics?.enabled ? 4 : 2 };
+  return `<header class="analysis-heading"><div><span class="eyebrow">VOLLEY RECORD · MATCH ANALYSIS</span><h2>赛后分析报告 <small>${esc(context.label)} · ${subtitle}</small></h2><p>${esc(m.competition)} · ${esc(selectedTeam(data))} · ${esc(m.date)} · 场序 ${esc(m.matchNo)}</p></div><span class="analysis-page-number">${page + context.offset} / ${context.total}</span></header>`;
 }
 
 function bar(group) {
@@ -14,7 +16,7 @@ function bar(group) {
   return `<div class="analysis-bar" aria-label="${esc(group.label)}：${group.success} 次成功项、${group.normal} 次一般、${group.error} 次失误"><span class="analysis-bar-success" style="width:${group.success / group.total * 100}%"></span><span class="analysis-bar-normal" style="width:${group.normal / group.total * 100}%"></span><span class="analysis-bar-error" style="width:${group.error / group.total * 100}%"></span></div>`;
 }
 
-export function statisticsReportHTML(data) {
+function baseReportHTML(data) {
   const report = buildStatisticsAnalysis(data);
   const overviewNotes = [];
   if (report.leaders.length) overviewNotes.push(`得分领先：${report.leaders.map(p => `${p.number} 号 ${p.name}`).join("、")}，${report.leaders.length > 1 ? "各" : ""}${report.leaders[0].points} 分。`);
@@ -30,7 +32,7 @@ export function statisticsReportHTML(data) {
       <div class="analysis-section-heading"><h3>全队技术表现</h3><div class="analysis-legend"><span>成功 / 到位 / 好球</span><span>一般</span><span>失误</span></div></div>
       <div class="analysis-table-scroll"><table class="analysis-team-table"><thead><tr><th>技术项目</th><th>成功项</th><th>一般</th><th>失误</th><th>总次数</th><th>成功项占比</th><th>失误率</th><th>次数分布</th></tr></thead><tbody>${report.groups.map(g => `<tr><th>${g.label}<small>${RATE_LABELS[g.key]}</small></th><td>${g.success}</td><td>${g.normal}</td><td>${g.error}</td><td>${g.total}</td><td>${percent(g.successRate)}</td><td>${percent(g.errorRate)}</td><td>${bar(g)}</td></tr>`).join("")}</tbody></table></div>
       <div class="analysis-bottom-grid"><section><h3>个人得分排名</h3>${report.ranking.length ? `<div class="analysis-table-scroll"><table class="analysis-ranking-table"><thead><tr><th>排名</th><th>号码 / 姓名</th><th>发球得分</th><th>扣死</th><th>拦死</th><th>总得分</th></tr></thead><tbody>${report.ranking.slice(0, 5).map(p => `<tr><td>${p.rank}</td><th>${esc(p.number)} 号 ${esc(p.name)}</th>${["serve", "attack", "block"].map(key => `<td>${p.groups.find(g => g.key === key).success}</td>`).join("")}<td><b>${p.points}</b></td></tr>`).join("")}</tbody></table></div><p class="analysis-small-note">展示得分排序前 5 位队员；同分并列，全部队员见明细页。</p>` : '<p class="analysis-empty">暂无得分记录</p>'}</section><section class="analysis-observations"><h3>本场记录摘要</h3>${overviewNotes.map(note => `<p>${esc(note)}</p>`).join("")}<p>全队已记录 ${report.actions} 次技术动作。同一回合可包含多个技术动作，动作次数及失误次数不等于比赛回合数或比分。</p></section></div>
-      <footer class="analysis-footnote">仅分析本表记录的队伍与动作。个人得分合计不包含对手失误或判罚得分；零记录项目显示“—”。进行中的局不计入已结束局比分。</footer>
+      <footer class="analysis-footnote">仅分析本表记录的队伍与动作；全场含未分局数据，旧数据不自动分摊到各局。个人得分合计不包含对手失误或判罚得分；零记录项目显示“—”。进行中的局不计入已结束局比分。</footer>
     </section>
     <section class="analysis-print-page analysis-details">
       ${header(data, "队员明细", 2)}
@@ -41,4 +43,35 @@ export function statisticsReportHTML(data) {
     ${setterReportHTML(data, header(data, "二传专项分析", 3))}
     ${attackComparisonReportHTML(data, header(data, "二传在场时进攻对比", 4))}
   </article>`;
+}
+
+function comparisonPage(data, keys, page, total) {
+  const rows = keys.map(key => ({ key, view: statisticsSetView(data, key), report: buildStatisticsAnalysis(statisticsSetView(data, key)) }));
+  if (data.setStatistics?.buckets?.unassigned && bucketHasCounts(data.setStatistics.buckets.unassigned)) rows.push({ key: "unassigned", view: statisticsSetView(data, "unassigned"), report: buildStatisticsAnalysis(statisticsSetView(data, "unassigned")) });
+  return `<article class="statistics-analysis-report"><section class="analysis-print-page analysis-set-comparison">
+    ${header({ ...data, reportContext: { label: "分局对比", offset: 0, total } }, "各局技术表现", page)}
+    <p class="analysis-detail-intro">全场合计 = 已分局数据 + 未分局数据。只比较已开始记录的局；未统计的局不作为零表现。未分局数据保留原值，不猜测发生在哪一局。</p>
+    <div class="analysis-table-scroll"><table class="analysis-team-table"><thead><tr><th>局次</th><th>主队 : 客队</th><th>技术动作</th><th>技术得分</th><th>失误</th><th>扣球成功率</th><th>进攻效率</th><th>一传到位率</th><th>防守好球率</th></tr></thead><tbody>${rows.map(({ key, report: r }) => {
+      const attack = r.groups.find(g => g.key === "attack"), receive = r.groups.find(g => g.key === "receive"), defend = r.groups.find(g => g.key === "defend");
+      const pair = key === "unassigned" ? null : data.setScores[Number(key) - 1];
+      return `<tr><th>${setLabel(key)}</th><td>${pair ? pair.map(n => esc(n || "—")).join(" : ") + (data.completedSets[Number(key) - 1] ? "（已结束）" : "（未结束）") : "—"}</td><td>${r.actions}</td><td>${r.points}</td><td>${r.errors}</td><td>${percent(attack.successRate)}</td><td>${percent(attack.total ? (attack.success - attack.error) / attack.total : null)}</td><td>${percent(receive.successRate)}</td><td>${percent(defend.successRate)}</td></tr>`;
+    }).join("")}</tbody></table></div>
+    <section class="analysis-set-reading"><h3>如何阅读分局数据</h3><p>技术得分只包含发球得分、扣死与拦死，不包含对手失误或判罚。技术动作次数不等于回合数，同一回合可能记录多种动作。</p><p>扣球成功率 = 扣死 ÷ 总进攻；进攻效率 =（扣死 − 失误）÷ 总进攻。全队比例按本局汇总次数计算，分母为零显示“—”。请结合记录量比较，尚未结束的局只反映已录入部分。</p><p>后续各局分别提供全队分析、14 人队员明细${data.setterStatistics.enabled ? "、二传专项和二传在场时进攻对比" : ""}。二传在场时进攻只表示记录时选中的二传，不代表每次进攻都由该二传完成传球。</p></section>
+  </section></article>`;
+}
+export function statisticsReportHTML(data) {
+  const keys = recordedSetKeys(data), base = data.setterStatistics?.enabled ? 4 : 2;
+  const total = base * (keys.length + 1) + (keys.length ? 1 : 0);
+  let output = baseReportHTML({ ...data, reportContext: { label: "全场", offset: 0, total } });
+  if (!keys.length) return output;
+  output += comparisonPage(data, keys, base + 1, total);
+  keys.forEach((key, index) => {
+    const view = statisticsSetView(data, key);
+    const indexOfSet = Number(key) - 1;
+    // Within each set's report, only that set contributes to the displayed result.
+    view.setScores = data.setScores.map((p, i) => i === indexOfSet ? p : ["", ""]);
+    view.completedSets = data.completedSets.map((ended, i) => i === indexOfSet && ended);
+    output += baseReportHTML({ ...view, reportContext: { label: setLabel(key), offset: base + 1 + index * base, total } });
+  });
+  return output;
 }

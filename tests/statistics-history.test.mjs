@@ -47,7 +47,7 @@ test("名单重排按身份撤销；身份变化、异常计数与更换二传�
   const data = sampleStatistics();
   adjustStatistic(data, 0, "serve", "success", 1);
   const imported = prepareStatisticsRosterImport(data, { players: [...data.players].reverse(), teamName: data.meta.homeTeam });
-  data.players = imported.players; data.attackAttribution = imported.attackAttribution;
+  data.players = imported.players; data.attackAttribution = imported.attackAttribution; data.setStatistics = imported.setStatistics;
   assert.equal(undoCounterChange(data).row, 13);
   adjustStatistic(data, 0, "serve", "success", 1);
   data.players[0].name = "另一位队员";

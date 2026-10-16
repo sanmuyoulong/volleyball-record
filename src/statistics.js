@@ -1,3 +1,4 @@
+import { initializeSetStatistics, statisticsSetView, setLabel, bucketHasCounts } from "./statistics-sets.js";
 import { app, modalRoot, escapeHTML as esc, toast, safeFilename, confirmDialog } from "./ui.js";
 import {
   STATISTICS_KEY, GROUPS, OUTCOMES, initialStatistics, sampleStatistics, hasStatisticsContent, normalizeStatistics,
@@ -34,7 +35,8 @@ export function startStatistics() {
   try { data = normalizeStatistics(JSON.parse(localStorage.getItem(STATISTICS_KEY))); }
   catch { data = initialStatistics(); }
   if (window.__managedRecord) data = normalizeStatistics(window.__managedRecord.statistics);
-  window.addEventListener("beforeprint", refreshAnalysisReport);
+  window.addEventListener("beforeprint", () => { refreshAnalysisReport(); refreshPaperScope(true); });
+  window.addEventListener("afterprint", () => refreshPaperScope(false));
   document.addEventListener("keydown", onStatisticsKey);
   document.querySelector("#data-manager").onclick = openStatisticsData;
   document.querySelector("#reset-app").textContent = "新建技术统计";
@@ -226,6 +228,7 @@ function openStatisticsRosterImport() {
   };
   confirm.onclick = () => {
     if (!prepared) return;
+    data.setStatistics = prepared.setStatistics;
     data.players = prepared.players;
     data.attackAttribution = prepared.attackAttribution;
     data.meta[data.meta.teamSide === "away" ? "awayTeam" : "homeTeam"] = prepared.teamName;
@@ -236,28 +239,36 @@ function openStatisticsRosterImport() {
 }
 
 function valueCell(row, group, outcome, label) {
-  const player = data.players[row];
+  const player = statisticsSetView(data).players[row];
   const value = player.counts[group][outcome];
-  const filled = Boolean(player.name && player.number);
+  const filled = Boolean(player.name && player.number) && data.setStatistics.selected !== "all";
   const description = `${player.number}号 ${player.name} ${label}`;
   return `<td data-cell="${row}-${group}-${outcome}"><div class="statistics-counter"><button type="button" data-row="${row}" data-group="${group}" data-outcome="${outcome}" data-delta="-1" aria-label="${esc(description)} 减少一次" ${!filled || !value ? "disabled" : ""}>−</button><span class="statistics-count">${value}</span><button type="button" data-row="${row}" data-group="${group}" data-outcome="${outcome}" data-delta="1" aria-label="${esc(description)} 增加一次" ${!filled ? "disabled" : ""}>＋</button></div></td>`;
 }
 
 function totalsHTML() {
-  const totals = teamTotals(data.players);
+  const totals = teamTotals(statisticsSetView(data).players);
   return `<tr><th colspan="2" scope="row">全队合计</th>${GROUPS.map(({ key }) => `${OUTCOMES.map(outcome => `<td data-team-total="${key}-${outcome}">${totals[key][outcome]}</td>`).join("")}<td class="statistics-total" data-team-total="${key}-total">${groupTotal(totals, key)}</td>`).join("")}</tr>`;
 }
 
 function renderTable() {
+  initializeSetStatisticsIfNeeded();
+  const recordData = data;
+  const tableView = statisticsSetView(recordData);
+  renderScopedTable(recordData, tableView);
+}
+
+function renderScopedTable(recordData, data) {
   if (!data.setterStatistics.enabled && ["inSystem", "outOfSystem", "secondAttack"].includes(data.capture.group)) data.capture.group = "attack";
   const m = data.meta;
   app.innerHTML = `<section class="statistics-page page-enter ${data.capture.mode === "quick" ? "quick-mode" : ""}">
     <div class="statistics-toolbar"><div><span class="eyebrow">TECHNICAL STATISTICS · LIVE</span><h1>技术统计</h1><p>点击 ＋ 记录一次，点击 − 纠正一次；总数自动相加，数据实时保存。</p></div><div><button class="ghost-button" id="load-statistics-demo" type="button">载入样例比赛</button><button class="ghost-button" id="edit-statistics" type="button">比赛信息与名单</button><button class="ghost-button" id="edit-statistics-scores" type="button">填写比分</button><button class="ghost-button" id="edit-statistics-signatures" type="button">填写签名</button><button class="ghost-button" id="view-statistics-analysis" type="button">分析报告</button><button class="primary-button blue" id="print-statistics" type="button">打印 / 导出 PDF</button></div></div>
+    ${setSelectorHTML(recordData)}
     ${activeSetterHTML(data)}
     <div id="statistics-capture-slot">${quickRecorderHTML(data, numberBuffer, captureMessage)}</div>
     <div class="statistics-scroll-hint">表格可左右滑动，队员姓名和号码固定在左侧。${data.setterStatistics.enabled ? "原表显示全部二传在场时的累计数据。" : ""}</div>
     <div class="statistics-sheet-scroll" role="region" aria-label="B6 技术统计表，可左右滚动" tabindex="0"><article class="statistics-sheet">
-      <div class="statistics-paper-heading"><div class="statistics-paper-meta"><div><span>比赛名称</span><b>${esc(m.competition)}</b></div><div><span>场序</span><b>${esc(m.matchNo)}</b></div><div><span>队名</span><b>${esc(selectedTeam(data))}</b></div></div></div>
+      <div class="statistics-paper-scope">${setLabel(data.setStatistics.selected)}</div><div class="statistics-paper-heading"><div class="statistics-paper-meta"><div><span>比赛名称</span><b>${esc(m.competition)}</b></div><div><span>场序</span><b>${esc(m.matchNo)}</b></div><div><span>队名</span><b>${esc(selectedTeam(data))}</b></div></div></div>
       <div class="statistics-paper-context"><span>主队：${esc(m.homeTeam)}</span><span>客队：${esc(m.awayTeam)}</span><span>男 ${m.gender === "男子" ? "☑" : "□"}　女 ${m.gender === "女子" ? "☑" : "□"}${m.gender === "混合" ? "　男女混合 ☑" : ""}</span><span>日期：${esc(m.date)}</span><span>比赛城市：${esc(m.city)}</span><span>比赛馆：${esc(m.venue)}</span></div>
       <div class="statistics-paper-result">${paperResultHTML()}</div>
       <table class="statistics-table"><caption class="sr-only">${esc(selectedTeam(data))}队员技术统计；每项总数等于前三项之和</caption><colgroup><col class="statistics-name-col" /><col class="statistics-number-col" />${GROUPS.map(() => '<col /><col /><col /><col class="statistics-total-col" />').join("")}</colgroup>
@@ -270,21 +281,23 @@ function renderTable() {
     <p class="statistics-table-note">总数 = ${"得分 / 扣死 / 到位 / 拦死 / 好球"} + 一般 + 失误；全队合计自动汇总所有队员。空白队员行需先在名单中填写姓名与号码。</p>
     <p class="statistics-last-action" id="statistics-last-action" role="status" aria-live="polite">已载入本机技术统计记录。</p>
     ${setterTableHTML(data)}
-    <p class="statistics-export-note">打印 / 导出 PDF 将同时包含原始统计表、全队分析与队员明细${data.setterStatistics.enabled ? "，以及二传专项分析与二传在场时进攻对比" : ""}。可先点击“分析报告”预览。</p>
-    <div id="statistics-analysis-print" class="statistics-analysis-print">${statisticsReportHTML(data)}</div>
+    <p class="statistics-export-note">打印 / 导出 PDF 包含全场原始统计表、全队分析、分局对比与各已记录局的完整明细${data.setterStatistics.enabled ? "，以及二传专项分析与二传在场时进攻对比" : ""}。可先点击“分析报告”预览。</p>
+    <div id="statistics-analysis-print" class="statistics-analysis-print">${statisticsReportHTML(recordData)}</div>
   </section>`;
-  app.querySelector("#edit-statistics").onclick = () => { data.screen = "setup"; renderStatistics(); window.scrollTo(0, 0); };
+  app.querySelector("#edit-statistics").onclick = () => { recordData.screen = "setup"; renderStatistics(); window.scrollTo(0, 0); };
   app.querySelector("#edit-statistics-scores").onclick = openStatisticsScores;
   if (window.__managedRecord?.hasOfficialScore()) app.querySelector("#edit-statistics-scores").textContent = "比分引用计分";
   app.querySelector("#edit-statistics-signatures").onclick = openStatisticsSignatures;
   app.querySelector("#view-statistics-analysis").onclick = openStatisticsAnalysis;
   app.querySelector("#print-statistics").onclick = printStatisticsWithReport;
   app.querySelector("#active-setter")?.addEventListener("change", event => {
-    if (!setActiveSetter(data, event.target.value)) return;
+    if (!setActiveSetter(recordData, event.target.value)) return;
     refreshActiveSetter();
     save();
   });
+  bindSetControls();
   bindCaptureControls();
+  if (recordData.setStatistics.selected === "all") app.querySelectorAll(".statistics-table button, .setter-table button, #active-setter").forEach(b => b.disabled = true);
   app.querySelector(".statistics-table").addEventListener("click", event => {
     const button = event.target.closest("button[data-delta]");
     if (!button) return;
@@ -299,7 +312,39 @@ function renderTable() {
   });
 }
 
-function updateCounterCells(kind, row, group) {
+function initializeSetStatisticsIfNeeded() {
+  if (!data.setStatistics?.buckets?.["1"]) initializeSetStatistics(data);
+}
+function setSelectorHTML(record) {
+  const selected = record.setStatistics.selected;
+  const legacy = bucketHasCounts(record.setStatistics.buckets.unassigned);
+  const max = Number(window.__managedRecord?.record.meta.matchFormat || 5);
+  return `<section class="statistics-set-selector" aria-label="分局记录"><div><h2>当前：${setLabel(selected)}${selected === "all" ? "（只读）" : ""}</h2><p>每局独立记录五项技术、二传与进攻归属；全场自动汇总。换局请手动选择，不会根据比分自动跳转；切回旧局补录时请核对场上二传。</p></div><div class="statistics-set-buttons">${["1", "2", "3", "4", "5", "all", ...(legacy ? ["unassigned"] : [])].map(key => `<button class="ghost-button compact ${key === selected ? "selected" : ""}" data-statistics-set="${key}" aria-pressed="${key === selected}" ${Number(key) > max ? "disabled" : ""}>${setLabel(key)}</button>`).join("")}<button class="primary-button blue compact" id="next-statistics-set" ${!["1", "2", "3", "4"].includes(selected) || Number(selected) >= max ? "disabled" : ""}>下一局 →</button></div>${legacy ? '<p class="statistics-set-legacy">存在未分局数据，计入全场合计，但不会猜测归属。可在“未分局”中核对旧记录，再选择具体局继续记录。</p>' : ""}</section>`;
+}
+function bindSetControls() {
+  app.querySelectorAll("[data-statistics-set]").forEach(button => button.onclick = () => {
+    data.setStatistics.selected = button.dataset.statisticsSet;
+    renderStatistics();
+    if (data.capture.mode === "quick") focusCapture();
+  });
+  app.querySelector("#next-statistics-set").onclick = async () => {
+    const next = String(Number(data.setStatistics.selected) + 1);
+    if (!await confirmDialog(`切换到第${next}局记录？上一局数据会保留，之后仍可切回纠正。`, { okText: "切换到下一局" })) return;
+    data.setStatistics.selected = next; renderStatistics();
+    if (data.capture.mode === "quick") focusCapture();
+  };
+}
+function refreshPaperScope(printing) {
+  if (data?.screen !== "table") return;
+  const view = printing ? data : statisticsSetView(data);
+  for (let row = 0; row < 14; row++) GROUPS.forEach(g => updateCounterCells("player", row, g.key, view));
+  for (let row = 0; row < 4; row++) SETTER_GROUPS.forEach(g => updateCounterCells("setter", row, g.key, view));
+  const label = app.querySelector(".statistics-paper-scope");
+  if (label) label.textContent = printing ? "全场合计（含未分局数据）" : setLabel(data.setStatistics.selected);
+}
+
+function recordDataForView() { return data; }
+function updateCounterCells(kind, row, group, data = statisticsSetView(recordDataForView())) {
   const setter = kind === "setter", p = setter ? data.setterStatistics.players[row] : data.players[row];
   const totals = setter ? setterTotals(data.setterStatistics.players) : teamTotals(data.players);
   const rowAttr = setter ? "setter-row" : "row";
@@ -308,7 +353,7 @@ function updateCounterCells(kind, row, group) {
     const cell = plus?.closest("td");
     if (cell) {
       cell.querySelector(".statistics-count").textContent = p.counts[group][outcome];
-      cell.querySelector('[data-delta="-1"]').disabled = p.counts[group][outcome] === 0;
+      cell.querySelector('[data-delta="-1"]').disabled = p.counts[group][outcome] === 0 || data.setStatistics.selected === "all";
     }
   }
   const totalKey = setter ? "setter-row-total" : "row-total";
@@ -318,11 +363,13 @@ function updateCounterCells(kind, row, group) {
     const cell = app.querySelector(`[data-${setter ? "setter-team-total" : "team-total"}="${group}-${outcome}"]`);
     if (cell) cell.textContent = outcome === "total" ? (setter ? setterGroupTotal(totals, group) : groupTotal(totals, group)) : totals[group][outcome];
   }
-  if (group === "attack") refreshActiveSetter();
+  if (group === "attack" && arguments.length < 4) refreshActiveSetter();
 }
 
 function recordStatistic(kind, row, group, outcome, delta) {
-  const attackSetter = group === "attack" ? (delta > 0 ? currentAttackSetter(data) : latestAttackSetter(data, row, outcome)) : null;
+  if (data.setStatistics.selected === "all") { captureMessage = "全场合计只读，请先选择要记录的局。"; refreshCaptureControls(); return false; }
+  const view = statisticsSetView(data);
+  const attackSetter = group === "attack" ? (delta > 0 ? currentAttackSetter(view) : latestAttackSetter(view, row, outcome)) : null;
   const adjust = kind === "setter" ? adjustSetterStatistic : adjustStatistic;
   if (!adjust(data, row, group, outcome, delta)) return false;
   const entry = latestCounterChange(data);
@@ -337,9 +384,11 @@ function recordStatistic(kind, row, group, outcome, delta) {
 function undoLastStatistic() {
   const result = undoCounterChange(data);
   if (result.error) { captureMessage = result.error; refreshCaptureControls(); return; }
-  captureMessage = `已撤销：${historyLabel(result.entry)}。${result.entry.group === "attack" ? "二传归属同步恢复，当前场上二传不变。" : ""}`;
-  app.querySelector("#statistics-last-action").textContent = captureMessage;
-  updateCounterCells(result.entry.kind, result.row, result.entry.group);
+  const message = `已撤销：${historyLabel(result.entry)}。${result.entry.group === "attack" ? "二传归属同步恢复，当前场上二传不变。" : ""}`;
+  data.setStatistics.selected = result.entry.setKey || "unassigned";
+  renderStatistics();
+  captureMessage = message;
+  app.querySelector("#statistics-last-action").textContent = message;
   refreshCaptureControls();
   save();
 }
@@ -348,7 +397,7 @@ function refreshCaptureControls() {
   const slot = app.querySelector("#statistics-capture-slot");
   if (!slot) return;
   const focused = slot.contains(document.activeElement);
-  slot.innerHTML = quickRecorderHTML(data, numberBuffer, captureMessage);
+  slot.innerHTML = quickRecorderHTML(statisticsSetView(data), numberBuffer, captureMessage);
   bindCaptureControls();
   if (focused && data.capture.mode === "quick") focusCapture();
 }
@@ -405,10 +454,11 @@ function onStatisticsKey(event) {
 }
 
 function refreshActiveSetter() {
+  const view = statisticsSetView(data);
   const summary = app.querySelector("#active-setter-summary");
   if (!summary) return;
-  summary.innerHTML = activeSetterSummaryHTML(data);
-  app.querySelector("#active-setter-players").innerHTML = activeSetterPlayersHTML(data);
+  summary.innerHTML = activeSetterSummaryHTML(view);
+  app.querySelector("#active-setter-players").innerHTML = activeSetterPlayersHTML(view);
 }
 
 function refreshAnalysisReport() {

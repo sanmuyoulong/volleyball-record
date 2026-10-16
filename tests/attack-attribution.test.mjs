@@ -73,7 +73,7 @@ test("JSON恢复归属顺序，名单按等价号码重排后攻手归属不串�
   setActiveSetter(d, 1); attack(d, 2, "error");
   d = normalizeStatistics(JSON.parse(JSON.stringify(d)));
   const imported = prepareStatisticsRosterImport(d, { players: [{ name: "主攻乙", number: "004" }, { name: "主攻甲", number: "3" }, { name: "二传甲", number: "1" }] });
-  d.players = imported.players; d.attackAttribution = imported.attackAttribution;
+  d.players = imported.players; d.attackAttribution = imported.attackAttribution; d.setStatistics = imported.setStatistics;
   const report = buildAttackComparison(d);
   assert.equal(report.groups[0].players[1].success, 1);
   assert.equal(report.groups[1].players[0].error, 1);
