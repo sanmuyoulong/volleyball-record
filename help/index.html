@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Volley Record 使用指南：比赛计分、技术统计、键盘快捷记录、分局分析、PDF 导出与赛事管理。" />
+    <title>帮助中心 · Volley Record</title>
+    <link rel="stylesheet" href="../styles.css" />
+    <link rel="icon" href="../assets/favicon.ico" />
+  </head>
+  <body>
+    <div class="app-frame">
+      <header class="topbar">
+        <a class="brand" href="../" aria-label="Volley Record 首页">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span><strong>VOLLEY RECORD</strong><small>排球赛事工作台</small></span>
+        </a>
+        <nav class="product-nav" aria-label="产品功能">
+          <a href="../">首页</a><a href="../record/">比赛记录</a><a href="../console/">控制台</a><a class="active" aria-current="page" href="./">帮助中心</a>
+        </nav>
+        <a class="primary-button compact topbar-cta" href="../record/">开始记录 <span>→</span></a>
+      </header>
+      <main class="help-page page-enter" id="top">
+        <header class="help-hero">
+          <span class="eyebrow">HELP CENTER</span>
+          <h1>帮助中心</h1>
+          <p>从第一场比赛开始，逐步掌握计分、技术统计与赛事管理。</p>
+          <div class="help-start"><strong>第一次使用？</strong><span>建议先载入样例比赛熟悉操作，再新建正式比赛。计分和技术统计均可直接使用，无需登录。</span><a href="../record/">进入比赛记录 →</a></div>
+        </header>
+        <div class="help-layout">
+          <nav class="help-toc" aria-label="帮助目录">
+            <strong>使用指南</strong>
+            <a href="#start">01 · 选择使用方式</a><a href="#scoring">02 · 比赛计分</a><a href="#statistics">03 · 技术统计</a><a href="#keyboard">04 · 键盘快速记录</a><a href="#sets">05 · 分局记录</a><a href="#setters">06 · 二传与进攻归属</a><a href="#export">07 · 报告与导出</a><a href="#console">08 · 控制台与赛事管理</a><a href="#backup">09 · 保存与备份</a><a href="#faq">10 · 常见问题</a>
+          </nav>
+          <div class="help-content">
+            <section class="help-section" id="start" aria-labelledby="start-title">
+              <span class="eyebrow">GET STARTED</span><h2 id="start-title">01 · 选择使用方式</h2>
+              <div class="help-options">
+                <article><h3>只记录一场比赛</h3><p>首页进入“比赛记录”，选择“计分”或“技术统计”。适合临时友谊赛、训练赛和单场记录。</p><a href="../record/">打开比赛记录 →</a></article>
+                <article><h3>管理多场比赛或赛事</h3><p>进入“控制台”，按页面提示进入本机演示。可以保存球队名单、创建赛事、编排比赛和管理赛果。</p><a href="../console/">打开控制台 →</a></article>
+              </div>
+              <p class="help-note">当前控制台使用本机数据，入口中的登录是演示流程。真实账号、云端同步和多人共同编辑尚未开放。</p>
+            </section>
+            <section class="help-section" id="scoring" aria-labelledby="scoring-title">
+              <h2 id="scoring-title">02 · 比赛计分</h2>
+              <ol class="help-steps">
+                <li><strong>选择规则。</strong>进入“计分”后，按比赛要求选择规则；只有赛事明确采用试行规则时才选择对应选项。</li>
+                <li><strong>完成赛前设置。</strong>依次填写比赛信息、双方球队与队员、裁判信息，以及首局首发阵容和发球队。</li>
+                <li><strong>记录比赛。</strong>使用双方得分按钮记录每一分，系统跟踪发球权与轮转；暂停、换人、自由人替换和判罚使用对应入口。</li>
+                <li><strong>核对并结束。</strong>误操作及时撤销；局结束后按提示设置下一局阵容，比赛结束后核对比分并确认赛果，再导出材料。</li>
+              </ol>
+              <h3>填写或上传队员名单</h3>
+              <p>可以逐行输入，也可以上传 CSV 或 XLSX 名单；XLSX 读取第一个工作表。姓名与号码为基本信息，每队最多 14 人，并可设置队长、自由人。混合比赛才需要填写队员性别。旧版 XLS 请先转换成 XLSX。</p>
+              <p class="help-note">计分与技术统计分别记录。技术统计中的得分项不会自动改变比赛计分，请按各自页面完成记录。</p>
+            </section>
+            <section class="help-section" id="statistics" aria-labelledby="statistics-title">
+              <h2 id="statistics-title">03 · 技术统计</h2>
+              <ol class="help-steps">
+                <li><strong>填写赛前信息。</strong>选择“技术统计”，填写比赛、双方球队、统计对象和队员名单。名单支持手填和上传；混合比赛需填写队员性别。</li>
+                <li><strong>选择专项。</strong>如需记录二传，赛前开启二传专项并填写二传名单，最多 4 人。</li>
+                <li><strong>进入记录。</strong>先核对当前局次，再选择“完整统计表”或“键盘快速记录”。两种方式使用同一份数据，可以随时切换。</li>
+                <li><strong>补全比赛材料。</strong>比分在记录页面通过“填写比分”录入，签名通过“填写签名”补充，均无需在赛前填写。</li>
+              </ol>
+              <h3>完整统计表怎么记？</h3>
+              <p>在对应队员行和技术栏目中点击“+”或“−”，记录发球、扣球、一传、拦网、防守的表现，总数自动汇总。“最近记录”可检查操作，点击“撤销上一次”撤销最近一次有效加减。</p>
+              <p>各项目的成功项按表头含义判断，例如得分、扣死、到位或好球。未看清的动作不要猜填“一般”，可以赛后对照录像补录；漏记会影响报告中的成功率与效率。</p>
+            </section>
+            <section class="help-section" id="keyboard" aria-labelledby="keyboard-title">
+              <h2 id="keyboard-title">04 · 键盘快速记录</h2>
+              <p>适合用电脑记录比赛。切换到“键盘快速记录”，使用英文输入法，按“号码 → 项目 → 结果”的顺序操作。队员与项目会保持选中，连续记录时只需切换发生变化的部分。</p>
+              <div class="help-example"><strong>例：记录 7 号队员一次扣球得分</strong><p><kbd>7</kbd> <kbd>Enter</kbd> 选人 → <kbd>A</kbd> 选扣球 → <kbd>J</kbd> 记录成功项。</p></div>
+              <div class="help-table-wrap"><table class="help-key-table"><caption>快捷键一览</caption><thead><tr><th scope="col">操作</th><th scope="col">按键</th></tr></thead><tbody>
+                <tr><td>选择队员</td><td>输入号码（0–999），按 <kbd>Enter</kbd> 确认</td></tr>
+                <tr><td>选择技术项目</td><td><kbd>S</kbd> 发球 · <kbd>R</kbd> 一传 · <kbd>A</kbd> 扣球 · <kbd>B</kbd> 拦网 · <kbd>D</kbd> 防守</td></tr>
+                <tr><td>二传专项（需先开启）</td><td><kbd>E</kbd> 到位球传球 · <kbd>T</kbd> 调整球传球 · <kbd>X</kbd> 二次进攻</td></tr>
+                <tr><td>记录结果</td><td><kbd>J</kbd> 成功项 · <kbd>K</kbd> 一般 · <kbd>L</kbd> 失误</td></tr>
+                <tr><td>撤销上一次</td><td><kbd>Ctrl</kbd> + <kbd>Z</kbd>，Mac 使用 <kbd>⌘</kbd> + <kbd>Z</kbd></td></tr>
+                <tr><td>修正待输入号码</td><td><kbd>Backspace</kbd> 删除一位；<kbd>Esc</kbd> 取消输入</td></tr>
+              </tbody></table></div>
+              <p class="help-note">填写输入框、选择框或打开弹窗时，记录快捷键暂停；完成后可点击“返回键盘记录区”。长按按键不会连续计数。表格与快捷键共用最近 30 次加减的撤销记录。</p>
+            </section>
+            <section class="help-section" id="sets" aria-labelledby="sets-title">
+              <h2 id="sets-title">05 · 分局记录</h2>
+              <p>新比赛从第 1 局开始。每次记录前查看局次选择区，当前局的五项技术、二传专项和进攻归属分别保存。</p>
+              <ul><li><strong>开始下一局：</strong>点击下一局入口并确认，系统不会根据手填比分自动切换局次。</li><li><strong>补录或修正：</strong>选回对应局次再操作；补录进攻前还要核对当前场上二传。</li><li><strong>查看全场：</strong>“全场合计”自动相加各局数据，只供查看，不能直接加减。</li><li><strong>撤销跨局操作：</strong>撤销会恢复操作原来所属局的数据，并切换到该局，随后请核对局次再继续。</li></ul>
+              <p class="help-note">旧版记录和原有样例中无法确定局次的数据保留在“未分局”，仍计入全场总数。系统不会猜测它们属于哪一局，也不会据此生成虚假的分局分析。</p>
+            </section>
+            <section class="help-section" id="setters" aria-labelledby="setters-title">
+              <h2 id="setters-title">06 · 二传与进攻归属</h2>
+              <p>赛前开启二传专项后，可单独填写姓名、号码，也可从已有名单带入，最多 4 人。记录时先选择“场上二传”，再记录其他队员的扣球表现。</p>
+              <ul><li><strong>到位球传球、调整球传球：</strong>分别记录“失误、一般、到位”。</li><li><strong>二次进攻球：</strong>记录“得分、一般、失误”，独立统计，不自动改动原表扣球数据。</li><li><strong>更换二传：</strong>切换场上二传后，新增加的扣球数据归属新二传，历史记录保持原归属。</li><li><strong>修正扣球：</strong>减少扣球数据会按该队员、该结果最近的记录，扣回原二传的归属；不会强行扣到当前二传。</li></ul>
+              <p>分析报告会单列二传传球质量、二次进攻，以及不同二传上场时其他队员的进攻效率对比。对比排除二传本人的扣球，二次进攻另列，避免重复相加。</p>
+              <p class="help-note">“上场时”由记录时选择的场上二传确定。请在换人时及时切换；该对比呈现记录期间的表现，不能单凭效率差异判断二传能力。</p>
+            </section>
+            <section class="help-section" id="export" aria-labelledby="export-title">
+              <h2 id="export-title">07 · 分析报告与 PDF 导出</h2>
+              <ol class="help-steps"><li><strong>先核对数据。</strong>检查双方名称、队员、各局比分、技术统计和签名。</li><li><strong>选择导出 PDF。</strong>浏览器会打开打印预览，在目标打印机中选择“另存为 PDF”或系统对应的 PDF 保存选项。</li><li><strong>检查页面并保存。</strong>按记录表的横向布局检查纸张、缩放和页数，确认内容完整后保存文件。</li></ol>
+              <p>技术统计导出会同时生成赛后分析报告，包含全场表现、队员数据及已记录局次的分局对比与明细；开启二传专项时还包含二传分析。当前界面选中某一局，也会导出全场及有记录局次的材料。</p>
+              <p>没有记录的局次不会凭空生成分析，旧数据的“未分局”仍计入全场。未记录或分母为零的指标可能显示“—”；请结合是否完整记录来解读结果。</p>
+              <p class="help-note">PDF 用于阅读与分享；需要继续编辑或迁移比赛，请另外导出 JSON 备份。</p>
+            </section>
+            <section class="help-section" id="console" aria-labelledby="console-title">
+              <h2 id="console-title">08 · 控制台与赛事管理</h2>
+              <ol class="help-steps"><li><strong>进入本机控制台。</strong>按入口提示进入演示，无需注册真实账号。</li><li><strong>建立球队名单。</strong>在球队管理中保存常用队员，可上传名单，后续创建比赛时复用。</li><li><strong>创建比赛或赛事。</strong>单场比赛可以独立创建；多场活动先创建赛事，填写分组和参赛队，再手动安排对阵、时间与场地。</li><li><strong>记录与确认赛果。</strong>从比赛卡片进入计分或技术统计，结束后确认有效赛果。已确认结束的比赛才参与对应排名计算。</li><li><strong>管理历史材料。</strong>可以归档和恢复比赛、导出备份。归档比赛不参与赛事排名。</li></ol>
+              <p>球队名单带入赛事或比赛后形成当时的副本。之后修改球队库，不会直接改变已创建比赛的队员，避免历史资料被意外覆盖。</p>
+              <p>临时比赛可通过“另存到控制台”复制保存；控制台副本与原临时记录独立，后续编辑不会互相同步。已开始正式计分的比赛，以计分模块确认的赛果为准。</p>
+              <p class="help-note">当前赛程由你手动安排；自动排赛、真实账号权限与多设备协作仍待后续开放。请避免同时在多个标签页修改同一场比赛。</p>
+            </section>
+            <section class="help-section" id="backup" aria-labelledby="backup-title">
+              <h2 id="backup-title">09 · 保存、备份与离线使用</h2>
+              <p>记录会自动保存到当前浏览器。计分和技术统计保留各自的临时草稿；如需保留多场比赛，建议存入控制台，或在开始新比赛前导出 JSON。</p>
+              <ul><li><strong>单场备份：</strong>使用记录页面的数据管理入口导出 JSON，之后可导入恢复。</li><li><strong>控制台备份：</strong>导出整份控制台数据；导入时先查看预览，按页面提示恢复。导入会作为新增资料处理，请避免反复导入同一备份造成重复。</li><li><strong>离线 HTML：</strong>下载后用新版 Chrome 或 Edge 打开，可离线使用记录和帮助中心；HTML 文件本身是程序，不自动携带已有比赛数据。</li><li><strong>更换设备或版本：</strong>先导出 JSON，再在目标设备、浏览器或离线文件中导入。</li></ul>
+              <p class="help-note">不同站点地址、浏览器和离线文件的数据不自动互通。清理浏览器数据或关闭无痕窗口可能丢失本机记录，正式比赛请及时保存 JSON 与 PDF。</p>
+            </section>
+            <section class="help-section" id="faq" aria-labelledby="faq-title">
+              <h2 id="faq-title">10 · 常见问题</h2>
+              <details><summary>点击“导出 PDF”为什么出现打印窗口？</summary><p>这是正常流程。在打印窗口的目标打印机里选择“另存为 PDF”，即可保存文件；无需连接实体打印机。</p></details>
+              <details><summary>队员名单为什么没有性别选项？</summary><p>只有比赛性别选择“男女混合”时，才需要填写队员性别。先检查赛前比赛信息中的性别选择。</p></details>
+              <details><summary>为什么表格的加减按钮不能点？</summary><p>先检查是否选中了“全场合计”。全场合计只供查看，请切换到具体局次；修正旧版记录时选择“未分局”。</p></details>
+              <details><summary>为什么快捷键没有反应？</summary><p>确认处于“键盘快速记录”模式，切换英文输入法，关闭弹窗并离开输入框，再点击“返回键盘记录区”。输入号码后需按 Enter 确认，选择项目后再按结果键。</p></details>
+              <details><summary>为什么样例比赛没有分局分析？</summary><p>原有样例保留为“未分局”，不会自动拆分成各局。切换到具体局次新增记录后，报告才会出现相应分局数据。</p></details>
+              <details><summary>换了浏览器或打开离线版，为什么比赛不见了？</summary><p>当前数据保存在原来的浏览器与地址下。回到原环境导出 JSON，然后到新的环境导入；登录演示入口不会自动同步数据。</p></details>
+              <details><summary>记录错了怎么办？</summary><p>技术统计可使用“撤销上一次”或 Ctrl / ⌘ + Z 撤销最近有效加减，也可以在对应局次和单元格修正。计分请使用计分页面提供的撤销功能。修正后重新导出报告。</p></details>
+            </section>
+            <footer class="help-footer"><a href="#top">返回顶部 ↑</a><a href="../record/">开始记录比赛 →</a></footer>
+          </div>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

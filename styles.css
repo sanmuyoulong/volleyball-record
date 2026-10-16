@@ -1359,3 +1359,51 @@ a.console-panel { color: inherit; text-decoration: none; }
 
 .analysis-set-comparison .analysis-team-table th:last-child { width: auto; }
 .analysis-set-comparison .analysis-team-table th:nth-child(2) { min-width: 130px; }
+
+/* Public usage guide shares the product's navigation and visual language. */
+.module-help { grid-column: 1 / -1; }
+.help-page { max-width: 1240px; margin: 0 auto; padding: 56px 32px 48px; }
+.help-hero h1 { font-size: clamp(34px, 5vw, 54px); letter-spacing: -.04em; margin: 12px 0; }
+.help-hero > p { color: var(--muted); line-height: 1.8; }
+.help-start { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; padding: 22px 24px; margin: 28px 0 40px; background: var(--blue-soft); border-radius: 14px; line-height: 1.8; }
+.help-start span { flex: 1 1 360px; }
+.help-start a, .help-options a, .help-footer a { color: var(--blue); font-weight: 600; text-underline-offset: 4px; }
+.help-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 48px; align-items: start; }
+.help-toc { position: sticky; top: 24px; display: grid; gap: 4px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: white; }
+.help-toc strong { padding: 4px 8px 12px; }
+.help-toc a { color: var(--muted); padding: 8px; font-size: 13px; text-decoration: none; border-radius: 6px; }
+.help-toc a:hover, .help-toc a:focus-visible { background: var(--blue-soft); color: var(--blue); }
+.help-content { min-width: 0; }
+.help-section { scroll-margin-top: 24px; padding-bottom: 36px; margin-bottom: 36px; border-bottom: 1px solid var(--line); line-height: 1.9; }
+.help-section h2 { margin: 0 0 18px; font-size: 25px; line-height: 1.4; }
+.help-section h3 { margin: 22px 0 8px; font-size: 17px; }
+.help-section p, .help-section li { color: #475467; }
+.help-section p { margin: 12px 0; }
+.help-section li { margin-bottom: 12px; }
+.help-section ol, .help-section ul { padding-left: 24px; }
+.help-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.help-options article { border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+.help-options h3 { margin-top: 0; }
+.help-section .help-note { background: #f5f7fa; border-left: 3px solid #a8b7cf; padding: 14px 18px; border-radius: 0 8px 8px 0; font-size: 14px; }
+.help-example { padding: 18px 20px; background: #f0f7f4; border-radius: 12px; margin: 20px 0; }
+.help-example p { margin-bottom: 0; }
+.help-page kbd { display: inline-block; border: 1px solid #cdd5df; border-radius: 4px; padding: 0 6px; background: white; color: #344054; font: 600 13px/1.8 monospace; }
+.help-table-wrap { max-width: 100%; overflow-x: auto; }
+.help-key-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.help-key-table caption { text-align: left; font-weight: 600; padding: 8px 0; }
+.help-key-table th, .help-key-table td { border: 1px solid var(--line); padding: 12px 14px; text-align: left; }
+.help-key-table th { background: #f5f7fa; }
+.help-key-table th:first-child { width: 28%; }
+.help-section details { padding: 16px 0; border-top: 1px solid var(--line); }
+.help-section summary { cursor: pointer; font-weight: 600; }
+.help-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 20px; }
+@media (max-width: 800px) {
+  .help-page { padding: 32px 18px; }
+  .help-layout { grid-template-columns: 1fr; gap: 30px; }
+  .help-toc { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; }
+  .help-toc strong { grid-column: 1 / -1; }
+  .help-toc a { font-size: 12px; }
+  .help-options { grid-template-columns: 1fr; }
+  .help-section h2 { font-size: 22px; }
+  .help-key-table th, .help-key-table td { padding: 10px 8px; }
+}
