@@ -20,6 +20,8 @@
     "test:pdf": "node scripts/export-pdf-check.mjs output/pdf/volleyball-match-record-sample.pdf",
     "test:console": "node scripts/console-flow-check.mjs",
     "test:console:offline": "node scripts/console-flow-check.mjs --offline",
-    "test:console:storage": "node scripts/console-storage-check.mjs"
+    "test:console:storage": "node scripts/console-storage-check.mjs",
+    "test:quick": "node scripts/statistics-quick-check.mjs",
+    "test:quick:offline": "node scripts/statistics-quick-check.mjs --offline"
   }
 }

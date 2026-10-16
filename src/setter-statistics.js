@@ -1,3 +1,4 @@
+import { recordCounterChange } from "./statistics-history.js";
 export const SETTER_LIMIT = 4;
 export const SETTER_GROUPS = [
   { key: "inSystem", label: "到位球传球", success: "到位", order: ["error", "normal", "success"] },
@@ -48,7 +49,9 @@ export function adjustSetterStatistic(data, row, group, outcome, delta) {
   if (!setters?.enabled || !p?.name.trim() || !p.number.trim() || !SETTER_GROUPS.some(g => g.key === group) || !OUTCOMES.includes(outcome) || ![1, -1].includes(delta)) return false;
   const next = p.counts[group][outcome] + delta;
   if (!Number.isSafeInteger(next) || next < 0) return false;
+  const before = p.counts[group][outcome];
   p.counts[group][outcome] = next;
+  recordCounterChange(data, { kind: "setter", name: p.name, number: p.number, group, outcome, delta, before, after: next });
   return true;
 }
 

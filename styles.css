@@ -1293,3 +1293,53 @@ a.console-panel { color: inherit; text-decoration: none; }
   .console-metrics { gap: 8px; }
 }
 @media print { .managed-banner { display: none !important; } }
+.statistics-mode-switch { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px 0; }
+.statistics-mode-switch > span { color: var(--muted); font-size: 13px; }
+.quick-recorder { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 24px; margin: 16px 0; box-shadow: var(--shadow-sm); }
+.quick-recorder-heading, .statistics-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.quick-recorder h2 { font-size: 28px; margin: 8px 0; }
+.quick-recorder p, .statistics-history p { font-size: 13px; line-height: 1.7; color: var(--muted); }
+.quick-groups { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 16px; }
+.quick-groups button { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; background: #f7f9fc; padding: 10px 14px; cursor: pointer; }
+.quick-groups button.selected, .quick-players button.selected { border-color: var(--blue); background: var(--blue-soft); color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
+.quick-recorder kbd { display: inline-grid; place-items: center; border: 1px solid #cfd6e0; background: white; border-radius: 5px; min-width: 24px; padding: 2px 5px; font: 600 13px monospace; color: #344054; }
+.quick-players { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; }
+.quick-players button { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 16px 8px; background: white; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; min-width: 0; }
+.quick-players strong { font-size: 24px; }
+.quick-players span { font-size: 14px; overflow-wrap: anywhere; }
+.quick-current { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 20px; padding: 20px; margin: 20px 0; background: #f5f8ff; border: 1px solid #e0e8fa; border-radius: 12px; }
+.quick-current:focus { outline: 2px solid var(--blue); outline-offset: 3px; }
+.quick-current small { display: block; color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.quick-current strong, .quick-current output { font-size: 24px; font-weight: 700; }
+.quick-results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.quick-results button { display: flex; justify-content: center; align-items: center; gap: 16px; min-height: 86px; border-radius: 14px; border: 1px solid #b7d9c9; background: #f0faf5; cursor: pointer; }
+.quick-results button[data-capture-outcome="normal"] { border-color: #cbd7ed; background: #f0f5ff; }
+.quick-results button[data-capture-outcome="error"] { border-color: #efcdca; background: #fff4f2; }
+.quick-results strong { font-size: 24px; }
+.quick-results span { color: var(--muted); font-size: 14px; }
+.quick-results button:disabled { opacity: .45; cursor: not-allowed; }
+.quick-feedback { min-height: 24px; font-weight: 600; }
+.quick-help { border-top: 1px solid var(--line); padding-top: 14px; font-size: 13px; color: var(--muted); }
+.quick-help summary, .statistics-history summary { cursor: pointer; }
+.statistics-history { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 18px 22px; margin: 16px 0; }
+.statistics-history h2 { font-size: 17px; margin: 0; }
+.statistics-history details { font-size: 13px; color: var(--muted); }
+.statistics-history ol { max-height: 190px; overflow: auto; padding-left: 24px; }
+.statistics-history li { padding: 7px 8px; }
+.statistics-history li small { margin-left: 14px; }
+.statistics-history li.undone { opacity: .55; text-decoration: line-through; }
+@media screen {
+  .quick-mode .statistics-sheet-scroll, .quick-mode .statistics-scroll-hint, .quick-mode .statistics-table-note,
+  .quick-mode .setter-live-section, .quick-mode #statistics-last-action { display: none; }
+}
+@media (max-width: 800px) {
+  .quick-recorder { padding: 16px; }
+  .quick-recorder-heading, .statistics-history-heading { align-items: start; flex-direction: column; gap: 10px; }
+  .quick-players { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .quick-current { grid-template-columns: 1fr; gap: 14px; }
+  .quick-results { gap: 8px; }
+  .quick-results button { flex-direction: column; gap: 6px; padding: 14px 6px; }
+  .quick-results strong { font-size: 19px; }
+  .statistics-history li small { display: block; margin: 4px 0; }
+}
+@media print { #statistics-capture-slot { display: none !important; } }
