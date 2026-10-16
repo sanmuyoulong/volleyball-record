@@ -22,6 +22,8 @@
     "test:console:offline": "node scripts/console-flow-check.mjs --offline",
     "test:console:storage": "node scripts/console-storage-check.mjs",
     "test:quick": "node scripts/statistics-quick-check.mjs",
-    "test:quick:offline": "node scripts/statistics-quick-check.mjs --offline"
+    "test:quick:offline": "node scripts/statistics-quick-check.mjs --offline",
+    "test:sets": "node scripts/statistics-sets-check.mjs",
+    "test:sets:offline": "node scripts/statistics-sets-check.mjs --offline"
   }
 }

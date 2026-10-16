@@ -7,6 +7,7 @@ import { SETTER_GROUPS, initialSetterStatistics, normalizeSetterStatistics, sett
 function dataWithSetters() {
   const data = sampleStatistics();
   delete data.attackAttribution;
+  delete data.setStatistics;
   data.setterStatistics = initialSetterStatistics();
   data.setterStatistics.enabled = true;
   Object.assign(data.setterStatistics.players[0], { name: "程野", number: "1", gender: "男" });

@@ -1,3 +1,4 @@
+import { initializeSetStatistics, statisticsSetView, commitSetView, remapSetRosters } from "./statistics-sets.js";
 import { normalizeHistory, recordCounterChange } from "./statistics-history.js";
 // B6 技术统计数据独立保存，不占用比赛计分和赛事归档的存储槽。
 import { initialSetterStatistics, normalizeSetterStatistics, validateSetterStatistics, hasSetterCounts } from "./setter-statistics.js";
@@ -23,6 +24,7 @@ export function initialStatistics() {
     version: 1,
     capture: { mode: "table", group: "attack", selectedNumber: "" },
     counterHistory: [],
+    setStatistics: { version: 1, selected: "1", buckets: {} },
     screen: "setup",
     meta: {
       competition: "", matchNo: "", homeTeam: "", awayTeam: "", teamSide: "home",
@@ -73,6 +75,7 @@ export function sampleStatistics() {
   ];
   setterRecords.forEach((counts, index) => Object.assign(data.setterStatistics.players[index], { name: names[index], number: String(index + 1), gender: genders[index], counts }));
   data.attackAttribution = sampleAttackAttribution(data);
+  initializeSetStatistics(data, null);
   return data;
 }
 
@@ -118,6 +121,7 @@ export function normalizeStatistics(saved) {
   base.counterHistory = normalizeHistory(saved.counterHistory);
   base.setterStatistics = normalizeSetterStatistics(saved.setterStatistics);
   base.attackAttribution = normalizeAttackAttribution(base, saved.attackAttribution);
+  initializeSetStatistics(base, saved.setStatistics);
   if (base.screen === "table" && validateStatistics(base)) base.screen = "setup";
   return base;
 }
@@ -137,17 +141,22 @@ export function teamTotals(players) {
 }
 
 export function adjustStatistic(data, row, group, outcome, delta) {
-  const player = data.players[row];
+  if (!data.setStatistics?.buckets?.["1"]) initializeSetStatistics(data);
+  const setKey = data.setStatistics.selected;
+  if (setKey === "all") return false;
+  const view = statisticsSetView(data);
+  const player = view.players[row];
   if (!player?.name.trim() || !player.number.trim() || !GROUPS.some(g => g.key === group) || !OUTCOMES.includes(outcome) || ![1, -1].includes(delta)) return false;
   const next = player.counts[group][outcome] + delta;
   if (!Number.isSafeInteger(next) || next < 0) return false;
   const before = player.counts[group][outcome];
-  const ledger = group === "attack" ? normalizeAttackAttribution(data) : null;
+  const ledger = group === "attack" ? normalizeAttackAttribution(view) : null;
   const beforeRuns = ledger ? JSON.parse(JSON.stringify(ledger.rows[row][outcome])) : null;
-  if (group === "attack") adjustAttackAttribution(data, row, outcome, delta);
+  if (group === "attack") adjustAttackAttribution(view, row, outcome, delta);
   player.counts[group][outcome] = next;
-  recordCounterChange(data, { kind: "player", name: player.name, number: player.number, group, outcome, delta, before, after: next,
-    ...(ledger ? { beforeRuns, afterRuns: JSON.parse(JSON.stringify(data.attackAttribution.rows[row][outcome])), setterNumbers: [...data.attackAttribution.setterNumbers] } : {}) });
+  recordCounterChange(data, { setKey, kind: "player", name: player.name, number: player.number, group, outcome, delta, before, after: next,
+    ...(ledger ? { beforeRuns, afterRuns: JSON.parse(JSON.stringify(view.attackAttribution.rows[row][outcome])), setterNumbers: [...view.attackAttribution.setterNumbers] } : {}) });
+  commitSetView(data, view);
   return true;
 }
 
@@ -196,7 +205,9 @@ export function prepareStatisticsRosterImport(data, imported) {
     const oldRow = p.number.trim() ? data.players.findIndex(old => old.number.trim() && Number(old.number) === Number(p.number) && old.name.trim() === p.name) : -1;
     return oldRow >= 0 ? structuredClone(ledger.rows[oldRow]) : { success: [], normal: [], error: [] };
   }) };
-  return { players, attackAttribution, teamName: teamName || selectedTeam(data), retainedCount: recorded.length, importedCount: incoming.length };
+  const partition = structuredClone(data);
+  remapSetRosters(partition, data.players, players);
+  return { players, attackAttribution, setStatistics: partition.setStatistics, teamName: teamName || selectedTeam(data), retainedCount: recorded.length, importedCount: incoming.length };
 }
 
 export function matchResult(setScores, completedSets) {
