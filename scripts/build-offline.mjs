@@ -8,7 +8,7 @@ const projectRoot = fileURLToPath(new URL("../", import.meta.url));
 const outputPath = resolve(projectRoot, process.argv[2] || "output/Volley-Record-离线版.html");
 const json = value => JSON.stringify(value).replaceAll("<", "\\u003c").replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
 const pages = {};
-for (const [key, path] of [["home", "index.html"], ["record", "record/index.html"], ["tournaments", "tournaments/index.html"], ["console", "console/index.html"], ["login", "login/index.html"]]) {
+for (const [key, path] of [["home", "index.html"], ["record", "record/index.html"], ["tournaments", "tournaments/index.html"], ["console", "console/index.html"], ["login", "login/index.html"], ["help", "help/index.html"]]) {
   const html = await readFile(resolve(projectRoot, path), "utf8");
   const body = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1];
   const title = html.match(/<title>([\s\S]*?)<\/title>/i)?.[1];
@@ -72,6 +72,7 @@ function localURL(href) {
   else if (pathname === "/tournaments/" || pathname === "/tournaments/index.html") route = "tournaments";
   else if (pathname === "/console/" || pathname === "/console/index.html") route = "console";
   else if (pathname === "/login/" || pathname === "/login/index.html") route = "login";
+  else if (pathname === "/help/" || pathname === "/help/index.html") route = "help";
   else throw Error("离线包中没有这个页面：" + pathname);
   const target = new URL(location.href);
   target.search = destination.search;
