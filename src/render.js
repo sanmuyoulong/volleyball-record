@@ -55,6 +55,7 @@ import {
   applyLiberoRedesignation
 } from "./logic.js";
 import { normalizeRosterRows, parseRosterFile } from "./roster-import.js";
+import { currentRule, rotationLabels, selectCompetitionProfile } from "./state.js";
 
 export function render() {
   modalRoot.replaceChildren();
@@ -74,19 +75,24 @@ export function renderRecordEntry() {
   ruleCards.forEach(card => {
     card.classList.toggle("selected", card.dataset.profile === state.competitionProfile);
     card.onclick = () => {
-      state.selectedRule = "modern";
-      state.competitionProfile = card.dataset.profile;
-      ruleCards.forEach(item => item.classList.toggle("selected", item === card));
+      selectCompetitionProfile(card.dataset.profile);
+      renderRecordEntry();
       saveState();
     };
   });
+  const note = app.querySelector("#rule-note p");
+  if (note) note.innerHTML = state.selectedRule === "air"
+    ? `<strong>气排球说明</strong>　${currentProfile().description} 采用五人轮次专用记录表。<a href="${currentRule().source}" target="_blank" rel="noopener noreferrer">规则依据</a>`
+    : '<strong>规则说明</strong>　2026 年“每局 8 次换人”等调整目前只适用于国际排联指定测试赛事；普通比赛应选择 2025–2028 正式基线。';
   app.querySelector("#start-setup").onclick = () => {
     state.screen = "setup";
     state.setupStep = 1;
     render();
   };
   app.querySelector("#contact-developer").onclick = openContactModal;
-  app.querySelector("#load-demo").onclick = loadDemoMatch;
+  const demoButton = app.querySelector("#load-demo");
+  demoButton.title = `载入当前选中的“${currentProfile().label}”样例比赛`;
+  demoButton.onclick = loadDemoMatch;
 }
 
 export function openContactModal() {
@@ -112,6 +118,7 @@ export function renderSetup() {
     form = app.querySelector("#setup-form");
   }
   const progress = app.querySelectorAll(".setup-progress button");
+  app.querySelector('.setup-progress [data-step="4"] small').textContent = state.selectedRule === "air" ? "I–V 与首次发球" : "I–VI 与首次发球";
   progress.forEach(button => {
     const step = Number(button.dataset.step);
     button.classList.toggle("active", step === state.setupStep);
@@ -132,9 +139,9 @@ export function renderSetup() {
 
 export function matchInfoForm() {
   const m = state.meta;
-  const profile = COMPETITION_PROFILES[state.competitionProfile];
+  const profile = currentProfile();
   const profileSummary = `
-    <div class="rule-note field full"><span>i</span><p><strong>${profile.label}</strong>　${profile.description} 所有比赛均使用统一的专业记录表样式。</p></div>`;
+    <div class="rule-note field full"><span>i</span><p><strong>${profile.label}</strong>　${profile.description} ${state.selectedRule === "air" ? '记录表采用五轮发球栏、五人位置表。<a href="' + currentRule().source + '" target="_blank" rel="noopener noreferrer">查看规则依据</a>' : "使用六人制专业记录表。"}</p></div>`;
   return `
     ${setupHeading("比赛信息", "用于记录表页眉和比赛时间轴。", 1)}
     <div class="form-grid">
@@ -144,7 +151,7 @@ export function matchInfoForm() {
       <div class="field"><label>比赛场馆 <span>*</span></label><input name="venue" value="${escapeHTML(m.venue)}" placeholder="场馆名称" /></div>
       <div class="field"><label>城市</label><input name="city" value="${escapeHTML(m.city)}" placeholder="城市 / 赛区" /></div>
       <div class="field"><label>场次编号</label><input name="matchNo" value="${escapeHTML(m.matchNo)}" placeholder="例如：A-07" /></div>
-      <div class="field"><label>比赛赛制 <span>*</span></label><select name="matchFormat"><option value="5" ${String(m.matchFormat) === "5" ? "selected" : ""}>五局三胜</option><option value="3" ${String(m.matchFormat) === "3" ? "selected" : ""}>三局两胜</option></select></div>
+      <div class="field"><label>比赛赛制 <span>*</span></label><select name="matchFormat">${state.selectedRule === "air" ? "" : `<option value="5" ${String(m.matchFormat) === "5" ? "selected" : ""}>五局三胜</option>`}<option value="3" ${String(m.matchFormat) === "3" ? "selected" : ""}>三局两胜</option></select></div>
       <div class="field"><label>组别</label><select name="category">${["成年组","青年组","少年组"].map(v => `<option ${m.category === v ? "selected" : ""}>${v}</option>`).join("")}</select></div>
       <div class="field"><label>性别</label><select name="gender">${["男子","女子","混合"].map(v => `<option ${m.gender === v ? "selected" : ""}>${v}</option>`).join("")}</select></div>
       ${profileSummary}
@@ -155,8 +162,8 @@ export function matchInfoForm() {
 export function teamForm() {
   const mixed = isMixedGender();
   return `
-    ${setupHeading("球队名单", mixed ? "混合比赛请为每名队员选择性别；号码在同一队内必须唯一；L 表示自由人。" : "号码在同一队内必须唯一；L 表示自由人。", 2)}
-    <div class="roster-import-note"><span>Excel / CSV</span><p>可分别为 A、B 队导入名单。支持第一工作表中的“号码、姓名${mixed ? "、性别" : ""}、自由人、队长、队伍名称、主教练”等列。</p><button class="text-button" type="button" data-action="download-roster-template">下载 CSV 模板</button></div>
+    ${setupHeading("球队名单", `${mixed ? "混合比赛请为每名队员选择性别；" : ""}号码在同一队内必须唯一；${currentRule().liberoMax ? "L 表示自由人。" : "气排球每队登记 5–10 人，不设自由人。"}`, 2)}
+    <div class="roster-import-note"><span>Excel / CSV</span><p>可分别为 A、B 队导入名单。支持第一工作表中的“号码、姓名${mixed ? "、性别" : ""}${currentRule().liberoMax ? "、自由人" : ""}、队长、队伍名称、主教练”等列。</p><button class="text-button" type="button" data-action="download-roster-template">下载 CSV 模板</button></div>
     <div class="team-editor-grid">
       ${state.teams.map((team, teamIndex) => teamEditor(team, teamIndex)).join("")}
     </div>
@@ -168,13 +175,13 @@ export function teamEditor(team, teamIndex) {
   return `
     <section class="team-editor">
       <div class="team-editor-head"><span class="team-letter">${teamIndex === 0 ? "A" : "B"}</span><input name="team-name-${teamIndex}" value="${escapeHTML(team.name)}" placeholder="队伍名称" aria-label="${teamIndex === 0 ? "A" : "B"}队名称" /><button class="ghost-button compact" type="button" data-action="import-roster" data-team="${teamIndex}">导入名单</button></div>
-      <div class="roster-head ${mixed ? "with-gender" : ""}"><span>号码</span><span>队员姓名</span><span>自由人</span>${mixed ? "<span>性别</span>" : ""}</div>
+      <div class="roster-head ${mixed ? "with-gender" : ""} ${currentRule().liberoMax ? "" : "without-libero"}"><span>号码</span><span>队员姓名</span>${currentRule().liberoMax ? "<span>自由人</span>" : ""}${mixed ? "<span>性别</span>" : ""}</div>
       <div class="roster-list">
         ${team.roster.map((player, playerIndex) => `
-          <div class="roster-row ${mixed ? "with-gender" : ""}">
+          <div class="roster-row ${mixed ? "with-gender" : ""} ${currentRule().liberoMax ? "" : "without-libero"}">
             <input name="player-number-${teamIndex}-${playerIndex}" value="${escapeHTML(player.number)}" inputmode="numeric" aria-label="球员号码" />
             <input name="player-name-${teamIndex}-${playerIndex}" value="${escapeHTML(player.name)}" aria-label="球员姓名" />
-            <label><input name="player-libero-${teamIndex}-${playerIndex}" type="checkbox" ${player.libero ? "checked" : ""} /> L</label>
+            ${currentRule().liberoMax ? `<label><input name="player-libero-${teamIndex}-${playerIndex}" type="checkbox" ${player.libero ? "checked" : ""} /> L</label>` : ""}
             ${mixed ? `<select name="player-gender-${teamIndex}-${playerIndex}" aria-label="球员性别">${GENDERS.map(value => `<option ${player.gender === value ? "selected" : ""}>${value}</option>`).join("")}</select>` : ""}
           </div>`).join("")}
       </div>
@@ -203,23 +210,23 @@ export function officialsForm() {
 
 export function lineupForm() {
   return `
-    ${setupHeading("第一局位置轮次", "按位置表填写 I–VI；I 号位为发球位置。", 4)}
+    ${setupHeading("第一局位置轮次", `按位置表填写 I–${currentRule().playersOnCourt === 5 ? "V；前排 IV、III、II，后排 V、I" : "VI"}；I 号位为发球位置。`, 4)}
     <div class="lineup-section">
       ${state.teams.map((team, index) => lineupCard(team, index, state.firstLineups[index], "setup")).join("")}
     </div>
     <div class="serve-choice">
       ${state.teams.map((team, index) => `<label><input type="radio" name="firstServer" value="${index}" ${state.firstServer === index ? "checked" : ""} /> ${escapeHTML(team.name || `球队 ${index === 0 ? "A" : "B"}`)} 第一局先发球</label>`).join("")}
     </div>
-    <div class="rule-note"><span>i</span><p>开始后系统会把首发号码写入记录表。接发球队第一次获得发球权时会自动轮转，由 II 号位球员发球。</p></div>
+    <div class="rule-note"><span>i</span><p>开始后系统会把首发号码写入记录表。${currentRule().rotateEveryPoint ? "气排球每次得分后，得分队顺时针轮转一位，由下一名队员发球；任何队员不能连续发球。" : "接发球队第一次获得发球权时会自动轮转，由 II 号位球员发球。"}</p></div>
     ${setupActions(4, true)}`;
 }
 
 export function lineupCard(team, teamIndex, lineup, scope) {
-  const order = [3, 2, 1, 4, 5, 0];
+  const order = currentRule().playersOnCourt === 5 ? [3, 2, 1, 4, 0] : [3, 2, 1, 4, 5, 0];
   return `
     <section class="lineup-card">
       <div class="lineup-card-head"><strong>${escapeHTML(team.name || `球队 ${teamIndex === 0 ? "A" : "B"}`)}</strong><span class="team-letter">${teamIndex === 0 ? "A" : "B"}</span></div>
-      <div class="court-grid">
+      <div class="court-grid ${currentRule().playersOnCourt === 5 ? "five-player" : ""}">
         ${order.map(positionIndex => `<label class="court-position ${positionIndex === 0 ? "position-i" : ""}"><span>${roman[positionIndex]}</span><input name="${scope}-lineup-${teamIndex}-${positionIndex}" value="${escapeHTML(lineup[positionIndex] || "")}" inputmode="numeric" aria-label="${team.name} ${roman[positionIndex]}号位" /></label>`).join("")}
       </div>
     </section>`;
@@ -273,9 +280,13 @@ export function bindSetupActions() {
 
 export function downloadRosterTemplate() {
   // 混合比赛的模板带“性别”列并给出男女示例；男子/女子比赛不需要逐人填写，保持原模板。
-  const csv = isMixedGender()
+  let csv = isMixedGender()
     ? "\uFEFF队伍名称,主教练,队长号码,号码,队员姓名,性别,自由人,队长\r\n示例队,教练姓名,8,1,队员姓名,男,,\r\n示例队,教练姓名,8,8,队长姓名,女,,是\r\n示例队,教练姓名,8,14,自由人姓名,女,是,"
     : "\uFEFF队伍名称,主教练,队长号码,号码,队员姓名,自由人,队长\r\n示例队,教练姓名,8,1,队员姓名,,\r\n示例队,教练姓名,8,8,队长姓名,,是\r\n示例队,教练姓名,8,14,自由人姓名,是,";
+  if (!currentRule().liberoMax) {
+    const gender = isMixedGender() ? ",性别" : "";
+    csv = `\uFEFF队伍名称,主教练,队长号码,号码,队员姓名${gender},队长\r\n` + Array.from({ length: 5 }, (_, i) => `示例队,教练姓名,1,${i + 1},队员${i + 1}${isMixedGender() ? (i < 3 ? ",男" : ",女") : ""},${i === 0 ? "是" : ""}`).join("\r\n");
+  }
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
@@ -289,7 +300,7 @@ export function downloadRosterTemplate() {
 export function rosterImportPreviewHTML(result) {
   const mixed = isMixedGender();
   const females = result.players.filter(player => player.gender === "女").length;
-  return `<section class="import-preview"><div class="import-summary"><div><small>有效队员</small><strong>${result.players.length}</strong></div><div><small>自由人</small><strong>${result.players.filter(player => player.libero).length}</strong></div>${mixed ? `<div><small>男 / 女</small><strong>${result.players.length - females} / ${females}</strong></div>` : ""}<div><small>队长</small><strong>${escapeHTML(result.captain || "待填写")}</strong></div></div>${result.warnings.length ? `<div class="import-warnings">${result.warnings.map(message => `<p>${escapeHTML(message)}</p>`).join("")}</div>` : ""}<div class="import-table ${mixed ? "with-gender" : ""}"><b>号码</b><b>队员姓名</b>${mixed ? "<b>性别</b>" : ""}<b>身份</b>${result.players.map(player => `<span>${escapeHTML(player.number)}</span><span>${escapeHTML(player.name)}</span>${mixed ? `<span>${escapeHTML(player.gender || "—")}</span>` : ""}<span>${player.number === result.captain ? "C" : ""}${player.libero ? `${player.number === result.captain ? " · " : ""}L` : ""}</span>`).join("")}</div></section>`;
+  return `<section class="import-preview"><div class="import-summary"><div><small>有效队员</small><strong>${result.players.length}</strong></div>${currentRule().liberoMax ? `<div><small>自由人</small><strong>${result.players.filter(player => player.libero).length}</strong></div>` : ""}${mixed ? `<div><small>男 / 女</small><strong>${result.players.length - females} / ${females}</strong></div>` : ""}<div><small>队长</small><strong>${escapeHTML(result.captain || "待填写")}</strong></div></div>${result.warnings.length ? `<div class="import-warnings">${result.warnings.map(message => `<p>${escapeHTML(message)}</p>`).join("")}</div>` : ""}<div class="import-table ${mixed ? "with-gender" : ""}"><b>号码</b><b>队员姓名</b>${mixed ? "<b>性别</b>" : ""}<b>身份</b>${result.players.map(player => `<span>${escapeHTML(player.number)}</span><span>${escapeHTML(player.name)}</span>${mixed ? `<span>${escapeHTML(player.gender || "—")}</span>` : ""}<span>${player.number === result.captain ? "C" : ""}${player.libero ? `${player.number === result.captain ? " · " : ""}L` : ""}</span>`).join("")}</div></section>`;
 }
 
 export function openRosterImportModal(teamIndex) {
@@ -308,7 +319,7 @@ export function openRosterImportModal(teamIndex) {
     try {
       const file = event.target.files?.[0];
       if (!file) return;
-      imported = normalizeRosterRows(await parseRosterFile(file));
+      imported = normalizeRosterRows(await parseRosterFile(file), { minimumPlayers: currentRule().rosterMin, maximumPlayers: currentRule().rosterMax, maximumLiberos: currentRule().liberoMax });
       resultSlot.innerHTML = rosterImportPreviewHTML(imported);
       confirm.disabled = false;
     } catch (error) {
@@ -322,7 +333,7 @@ export function openRosterImportModal(teamIndex) {
     if (!window.__managedRecord) team.name = imported.teamName || team.name;
     team.coach = imported.coach || team.coach;
     team.captain = imported.captain || (numbers.includes(team.captain) ? team.captain : "");
-    team.roster = [...imported.players, ...defaultRoster()].slice(0, 14);
+    team.roster = [...imported.players, ...defaultRoster()].slice(0, currentRule().rosterMax);
     modalRoot.replaceChildren();
     renderSetup();
     saveState();
@@ -410,7 +421,7 @@ export function scoreboardHTML(set) {
     <section class="scoreboard">
       <div class="scoreboard-top">
         ${teamScoreHTML(0, set)}
-        <div class="set-center"><small>CURRENT SET</small><strong>${set.number}</strong><span>目标 ${setTarget(set.number, state.match.maxSets)} 分 · 领先 2 分</span></div>
+        <div class="set-center"><small>CURRENT SET</small><strong>${set.number}</strong><span>目标 ${setTarget(set.number, state.match.maxSets, state.selectedRule)} 分 · 领先 2 分</span></div>
         ${teamScoreHTML(1, set)}
       </div>
       ${setHistoryHTML()}
@@ -463,17 +474,17 @@ export function operationsHTML(set) {
       </div>
     </section>
     <section class="operation-card">
-      <h3>换人</h3><p>校验场上球员、原始配对与本局换人次数。</p>
+      <h3>换人</h3><p>${currentRule().unrestrictedSubstitutions ? "每局最多 6 人次；队员可替换任意位置，不限制原始配对。" : "校验场上球员、原始配对与本局换人次数。"}</p>
       <div class="operation-row">
         ${[0,1].map(team => `<button class="action-button" type="button" data-score-action="substitution" data-team="${team}" ${set.ended || set.subCount[team] >= maxSubs ? "disabled" : ""}>${escapeHTML(state.teams[team].name)}<strong>${set.subCount[team]} / ${maxSubs}</strong></button>`).join("")}
       </div>
     </section>
-    <section class="operation-card">
+    ${currentRule().liberoMax ? `<section class="operation-card">
       <h3>自由人替换</h3><p>不计普通换人；自动校验后排位置和已完成回合。</p>
       <div class="operation-row">
         ${[0,1].map(team => `<button class="action-button ${liberoNeedsImmediateExit(team, set) ? "needs-action" : ""}" type="button" data-score-action="libero" data-team="${team}" ${set.ended ? "disabled" : ""}>${escapeHTML(state.teams[team].name)}<strong>${escapeHTML(liberoStatusText(team, set))}</strong></button>`).join("")}
       </div>
-    </section>
+    </section>` : `<section class="operation-card"><h3>气排球轮转</h3><p>五人顺时针轮转；每次得分均由下一名队员发球。决胜局领先队到 8 分交换场区。</p></section>`}
     <section class="operation-card sanction-card">
       <h3>判罚与延误</h3><p>记录不当请求、延误及行为判罚；罚分会自动计入对方比分。</p>
       <button class="action-button wide" type="button" data-score-action="sanction" ${set.ended ? "disabled" : ""}>登记判罚<strong>${state.match.sanctions.length} 条</strong></button>
@@ -493,9 +504,9 @@ export function operationsHTML(set) {
 
 export function sheetHTML(set, printMode = false) {
   return `
-    <section class="sheet-shell">
+    <section class="sheet-shell ${state.selectedRule === "air" ? "air-sheet" : ""}">
       <div class="sheet-head">
-        <div class="sheet-title"><span>VR</span><div><h3>国际排球电子记录表</h3><small>BASED ON FIVB SCOREKEEPING WORKFLOW</small></div></div>
+        <div class="sheet-title"><span>VR</span><div><h3>${state.selectedRule === "air" ? "气排球比赛记录表（五人制）" : "国际排球电子记录表"}</h3><small>${state.selectedRule === "air" ? "AIR VOLLEYBALL · 2026–2029 · 21 / 21 / 15" : "BASED ON FIVB SCOREKEEPING WORKFLOW"}</small></div></div>
         ${printMode ? `<div class="print-set-label">第 ${set.number} 局 · ${set.ended ? `${set.score[0]} : ${set.score[1]}` : "进行中"}</div>` : `<div class="set-tabs">${state.match.sets.map((item, index) => `<button class="set-tab ${state.viewSetIndex === index ? "active" : ""} ${item.ended ? `won-${item.winner === 0 ? "a" : "b"}` : ""}" type="button" data-score-action="view-set" data-index="${index}">第${index + 1}局</button>`).join("")}</div>`}
       </div>
       <div class="paper-meta">
@@ -508,7 +519,7 @@ export function sheetHTML(set, printMode = false) {
       </div>
       ${sheetPersonnelHTML(set)}
       <div class="set-record">${paperTeamHTML(0, set)}${paperTeamHTML(1, set)}</div>
-      ${liberoControlHTML(set)}
+      ${currentRule().liberoMax ? liberoControlHTML(set) : ""}
       ${sanctionControlHTML(set)}
       <div class="sheet-summary">
         <div class="summary-events"><h4>备　注 / 自动记录</h4>${set.substitutions.flat().length ? set.substitutions.flat().map(sub => `<p>第 ${set.number} 局 · ${escapeHTML(sub.team)}：${escapeHTML(sub.out)} 号下，${escapeHTML(sub.in)} 号上（${escapeHTML(sub.score)}）</p>`).join("") : "<p>本局暂无普通换人记录。</p>"}${set.courtChanged ? "<p>决胜局领先队达到 8 分，已记录交换场区。</p>" : ""}${state.match.auditLog.filter(entry => entry.type === "correction" && entry.setNumber === set.number).map(entry => `<p>纠错：${escapeHTML(entry.label)}；原因：${escapeHTML(entry.meta?.reason || "—")}</p>`).join("")}</div>
@@ -548,7 +559,7 @@ export function sheetPersonnelHTML(set) {
         const players = team.roster.filter(player => player.number && player.name);
         return `<article class="sheet-roster-card">
           <div class="sheet-roster-head ${mixed ? "with-gender" : ""}"><span>${teamIndex === 0 ? "A" : "B"}</span><strong>${escapeHTML(team.name)}</strong><small><b>主教练</b> ${escapeHTML(team.coach || "—")}</small>${mixed ? `<em class="gender-mix">${genderCountText(players)}</em>` : ""}</div>
-          <div class="sheet-lineup-summary">${roman.map((position, index) => `<span><b>${position}</b>${escapeHTML(set.lineups[teamIndex][index])}</span>`).join("")}</div>
+          <div class="sheet-lineup-summary">${rotationLabels().map((position, index) => `<span><b>${position}</b>${escapeHTML(set.lineups[teamIndex][index])}</span>`).join("")}</div>
           <div class="sheet-roster-grid">${players.map(player => `<span class="sheet-player"><b>${escapeHTML(player.number)}</b>${escapeHTML(player.name)}${player.number === team.captain ? " <i>C</i>" : ""}${isLiberoNumber(teamIndex, player.number) ? " <i>L</i>" : ""}${mixed ? genderBadge(playerGender(player)) : ""}</span>`).join("")}</div>
         </article>`;
       }).join("")}
@@ -560,7 +571,7 @@ export function printOverviewHTML() {
   const winner = state.match.ended ? (state.match.setsWon[0] > state.match.setsWon[1] ? 0 : 1) : null;
   const resultRows = state.match.sets.map(set => `<tr><td>第 ${set.number} 局</td><td>${escapeHTML(set.startTime)}${set.endTime ? ` - ${escapeHTML(set.endTime)}` : " - 进行中"}</td><td>${set.score[0]}</td><td>${set.score[1]}</td></tr>`).join("");
   return `<section class="print-match-overview">
-    <div class="print-cover-brand"><span>VR</span><div><h1>排球比赛完整记录</h1><p>VOLLEYBALL MATCH RECORD</p></div></div>
+    <div class="print-cover-brand"><span>VR</span><div><h1>${state.selectedRule === "air" ? "气排球比赛完整记录" : "排球比赛完整记录"}</h1><p>${state.selectedRule === "air" ? "AIR VOLLEYBALL MATCH RECORD" : "VOLLEYBALL MATCH RECORD"}</p></div></div>
     <div class="print-cover-title"><small>${escapeHTML(state.meta.competition)}</small><h2>${escapeHTML(state.teams[0].name)} <i>VS</i> ${escapeHTML(state.teams[1].name)}</h2><p>${matchFormatLabel()} · ${escapeHTML(currentProfile().label)}</p></div>
     <div class="print-overview-grid">
       <div><b>日期与时间</b><span>${escapeHTML(state.meta.date)} ${escapeHTML(state.meta.scheduledTime)}</span></div>
@@ -599,7 +610,7 @@ export function exportFullMatchPDF() {
 
 export function paperTeamHTML(teamIndex, set) {
   const team = state.teams[teamIndex];
-  const pointBase = set.number === state.match.maxSets ? 30 : 48;
+  const pointBase = currentRule().pointsColumns[state.selectedRule === "air" ? set.number - 1 : set.number === state.match.maxSets ? 4 : set.number - 1];
   const pointCount = Math.max(pointBase, set.score[teamIndex]);
   const sanctionPoints = new Set(set.rallies.filter(rally => rally.winner === teamIndex && rally.source === "sanction").map(rally => rally.teamPoint));
   return `<section class="paper-team">
@@ -609,7 +620,7 @@ export function paperTeamHTML(teamIndex, set) {
       <div class="serve-receive"><i class="${set.firstServer === teamIndex ? "active" : ""}">S</i><i class="${set.firstServer !== teamIndex ? "active" : ""}">R</i></div>
     </div>
     <div class="rotation-table">
-      ${roman.map((label, index) => rotationCellHTML(teamIndex, index, set)).join("")}
+      ${rotationLabels().map((label, index) => rotationCellHTML(teamIndex, index, set)).join("")}
     </div>
     <div class="paper-lower">
       <div class="point-area">
@@ -797,9 +808,9 @@ export function openLineupModal(nextNumber) {
   const suggestedServer = isDecidingSet ? 0 : 1 - previous.firstServer;
   modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal wide"><div class="modal-head"><div><h2>第 ${nextNumber} 局位置轮次表</h2><p>${isDecidingSet ? "决胜局应重新掷边，请确认首先发球的队伍。" : "请按教练提交的位置表重新填写，系统不会沿用上一局换人关系。"}</p></div></div>${setHistoryHTML(true)}<div class="lineup-modal-grid">${state.teams.map((team, index) => lineupCard(team, index, suggestedLineups[index], "next")).join("")}</div><div class="serve-choice">${state.teams.map((team, index) => `<label><input type="radio" name="nextServer" value="${index}" ${suggestedServer === index ? "checked" : ""} /> ${escapeHTML(team.name)} 先发球</label>`).join("")}</div><div id="modal-validation"></div><div class="modal-actions"><button class="primary-button blue" id="start-next-set" type="button">确认轮次并开始第 ${nextNumber} 局</button></div></section></div>`;
   modalRoot.querySelector("#start-next-set").addEventListener("click", () => {
-    const lineups = state.teams.map((_, teamIndex) => roman.map((__, positionIndex) => modalRoot.querySelector(`[name="next-lineup-${teamIndex}-${positionIndex}"]`).value.trim()));
+    const lineups = state.teams.map((_, teamIndex) => rotationLabels().map((__, positionIndex) => modalRoot.querySelector(`[name="next-lineup-${teamIndex}-${positionIndex}"]`).value.trim()));
     for (let teamIndex = 0; teamIndex < 2; teamIndex++) {
-      const result = validateLineup(lineups[teamIndex], rosterNumbers(teamIndex));
+      const result = validateLineup(lineups[teamIndex], rosterNumbers(teamIndex), currentRule().playersOnCourt);
       if (!result.ok) {
         modalRoot.querySelector("#modal-validation").innerHTML = `<div class="validation-banner">${escapeHTML(state.teams[teamIndex].name)}：${escapeHTML(result.message)}</div>`;
         return;

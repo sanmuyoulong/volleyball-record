@@ -20,8 +20,7 @@ export function locked(match) {
   return Boolean(match.scoring?.match || ["home", "away"].some(side => match.statistics?.[side]?.screen === "table"));
 }
 export function scoreData(record) {
-  const payload = normalizeState(copy(record.scoring));
-  payload.meta = { ...payload.meta, ...record.meta };
+  const payload = normalizeState({ ...copy(record.scoring), meta: { ...record.scoring?.meta, ...record.meta } });
   payload.teams = payload.teams.map((team, i) => ({ ...team, id: record.teams[i].id, name: record.teams[i].name }));
   payload.matchId = record.id;
   payload.tournamentId = record.tournamentId;
@@ -62,7 +61,7 @@ export function validateFinal(record) {
   r.setScores.forEach((pair, i) => {
     if (!r.completedSets[i]) { if (pair.some(v => v !== "")) throw Error("还有未结束的局，请先完成比分。"); gap = true; return; }
     if (gap || ended || i >= max) throw Error("局比分顺序或局数不符合赛制。");
-    const a = Number(pair[0]), b = Number(pair[1]), goal = i === max - 1 ? 15 : 25;
+    const a = Number(pair[0]), b = Number(pair[1]), goal = i === max - 1 ? 15 : record.scoring?.selectedRule === "air" ? 21 : 25;
     if (Math.max(a, b) < goal || Math.abs(a - b) < 2 || (Math.max(a, b) > goal && Math.abs(a - b) !== 2)) throw Error(`第 ${i + 1} 局比分不符合比赛规则。`);
     wins[a > b ? 0 : 1]++;
     ended = wins.some(n => n === target);

@@ -2,7 +2,7 @@ import { app, escapeHTML as esc, toast, confirmDialog } from "./ui.js";
 import { session, requireSession, navigate } from "./session.js";
 import { repository, migrateLegacy } from "./console-repository.js";
 import { copy, id, newMatch, locked, status, commonScores, finalResult, validateFinal } from "./console-domain.js";
-import { normalizeState, defaultRoster } from "./state.js";
+import { normalizeState, defaultRoster, applyCompetitionProfile } from "./state.js";
 import { normalizeStatistics, validateStatistics } from "./statistics-state.js";
 import { parseRosterFile, normalizeRosterRows } from "./roster-import.js";
 import { computeStandings } from "./tournament-rules.js";
@@ -72,7 +72,7 @@ function modal(title, content, submit) {
   return root;
 }
 function metaFields(m = {}, isLocked = false) {
-  return `<div class="form-grid">${input("competition", "比赛名称", m.competition, "text", true)}${input("date", "日期", m.date || new Date().toLocaleDateString("en-CA"), "date", true)}${input("scheduledTime", "计划开始时间", m.scheduledTime, "time", true)}${input("venue", "场馆", m.venue, "text", true)}${input("city", "城市", m.city)}${input("matchNo", "场次编号", m.matchNo)}${select("gender", "性别", [["男子", "男子"], ["女子", "女子"], ["混合", "男女混合"]], m.gender || "男子", isLocked)}${select("matchFormat", "赛制", [["5", "五局三胜"], ["3", "三局两胜"]], m.matchFormat || "5", isLocked)}${select("profile", "规则", [["official", "FIVB 2025–2028 正式规则"], ["test2026", "FIVB 2026 指定赛事试行"]], m.profile || "official", isLocked)}</div>`;
+  return `<div class="form-grid">${input("competition", "比赛名称", m.competition, "text", true)}${input("date", "日期", m.date || new Date().toLocaleDateString("en-CA"), "date", true)}${input("scheduledTime", "计划开始时间", m.scheduledTime, "time", true)}${input("venue", "场馆", m.venue, "text", true)}${input("city", "城市", m.city)}${input("matchNo", "场次编号", m.matchNo)}${select("gender", "性别", [["男子", "男子"], ["女子", "女子"], ["混合", "男女混合"]], m.gender || "男子", isLocked)}${select("matchFormat", "赛制", [["5", "五局三胜"], ["3", "三局两胜"]], m.matchFormat || "5", isLocked)}${select("profile", "规则", [["official", "FIVB 2025–2028 正式规则"], ["test2026", "FIVB 2026 指定赛事试行"], ["air2026", "气排球记录（五人制 · 2026–2029）"]], m.profile || "official", isLocked)}</div>`;
 }
 function readMeta(values, old = {}) { const m = { ...old }; ["competition", "date", "scheduledTime", "venue", "city", "matchNo", "gender", "matchFormat"].forEach(k => { if (values.has(k)) m[k] = String(values.get(k)).trim(); }); return m; }
 function teamFields(team = {}) {
@@ -156,11 +156,23 @@ function createMatch(eventId = "", editId = "") {
     if (e && selected.some(t => !e.teams.some(p => p.id === t.id))) throw Error("赛事比赛必须选择两支参赛队伍。请先添加参赛队伍。");
     const next = m ? copy(m) : newMatch(meta, selected, e?.id || null);
     next.meta = meta; next.teams = selected;
-    if (!isLocked) next.scoring.competitionProfile = v.get("profile") || "official";
     next.scoring.meta = { ...next.scoring.meta, ...meta }; next.scoring.teams = copy(selected);
+    if (!isLocked) applyCompetitionProfile(next.scoring, v.get("profile") || "official");
+    next.scoring.meta.matchFormat = next.scoring.selectedRule === "air" ? "3" : meta.matchFormat;
+    next.meta.matchFormat = next.scoring.meta.matchFormat;
     const saved = await repository.put("matches", next, m?.revision || 0);
     if (!m) navigate(link("match", saved.id));
-  }); return root;
+  });
+  const profileField = root.querySelector('[name="profile"]');
+  const formatField = root.querySelector('[name="matchFormat"]');
+  const updateFormat = () => {
+    const air = profileField.value === "air2026";
+    if (air) formatField.value = "3";
+    formatField.disabled = Boolean(isLocked || air);
+  };
+  profileField.addEventListener("change", updateFormat);
+  updateFormat();
+  return root;
 }
 function manualScore(key) {
   const m = matches.find(x => x.id === key); if (m.scoring?.match) throw Error("正式计分已开始，请在计分页更改比分。");

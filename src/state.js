@@ -41,8 +41,8 @@ export function playerGender(player) {
   return GENDERS.includes(player?.gender) ? player.gender : "";
 }
 
-export function defaultRoster() {
-  return Array.from({ length: 14 }, () => ({ number: "", name: "", libero: false, gender: "" }));
+export function defaultRoster(count = 14) {
+  return Array.from({ length: count }, () => ({ number: "", name: "", libero: false, gender: "" }));
 }
 
 export function initialState() {
@@ -98,9 +98,10 @@ export function restoreState() {
 export function normalizeState(saved) {
   const base = initialState();
   const restored = { ...base, ...saved, meta: { ...base.meta, ...saved.meta }, officials: { ...base.officials, ...saved.officials } };
-  restored.selectedRule = "modern";
+  restored.selectedRule = RULESETS[saved.selectedRule] ? saved.selectedRule : "modern";
   if (!["record", "setup", "score"].includes(restored.screen)) restored.screen = "record";
-  if (!["official", "test2026"].includes(restored.competitionProfile)) restored.competitionProfile = "official";
+  if (restored.selectedRule === "air") restored.competitionProfile = "air2026";
+  else if (!["official", "test2026"].includes(restored.competitionProfile)) restored.competitionProfile = "official";
   // 旧存档的队员没有 gender 字段，这里补齐，混合比赛选人时才有值可用。
   restored.teams = [0, 1].map(index => {
     const savedTeam = Array.isArray(saved.teams) ? saved.teams[index] : null;
@@ -108,6 +109,7 @@ export function normalizeState(saved) {
     return { ...base.teams[index], ...(savedTeam || {}), roster: roster.map(player => ({ number: "", name: "", libero: false, gender: "", ...player })) };
   });
   restored.meta.matchFormat = ["3", "5"].includes(String(restored.meta.matchFormat)) ? String(restored.meta.matchFormat) : "5";
+  if (restored.selectedRule === "air") restored.meta.matchFormat = "3";
   if (restored.match) {
     restored.match.maxSets = Number(restored.match.maxSets || restored.meta.matchFormat || 5);
     restored.match.setsToWin = Number(restored.match.setsToWin || Math.floor(restored.match.maxSets / 2) + 1);
@@ -279,7 +281,36 @@ export function currentSet() {
 }
 
 export function currentProfile() {
-  return COMPETITION_PROFILES[state.competitionProfile] || COMPETITION_PROFILES.official;
+  return COMPETITION_PROFILES[state.selectedRule === "air" ? "air2026" : state.competitionProfile] || COMPETITION_PROFILES.official;
+}
+
+export function currentRule() {
+  return RULESETS[state.selectedRule] || RULESETS.modern;
+}
+
+export function rotationLabels() {
+  return roman.slice(0, currentRule().playersOnCourt);
+}
+
+export function selectCompetitionProfile(profileId) {
+  applyCompetitionProfile(state, profileId);
+}
+
+export function applyCompetitionProfile(target, profileId) {
+  const nextRule = profileId === "air2026" ? "air" : "modern";
+  if (target.selectedRule !== nextRule) {
+    target.selectedRule = nextRule;
+    const rule = RULESETS[nextRule];
+    target.meta.matchFormat = String(rule.maxSets);
+    target.firstLineups = target.firstLineups.map(lineup => Array.from({ length: rule.playersOnCourt }, (_, i) => lineup[i] || ""));
+    // Retain filled rows when changing rules so an existing roster is never silently lost.
+    target.teams.forEach(team => {
+      const lastFilled = team.roster.findLastIndex(p => p.number || p.name);
+      const count = Math.max(rule.rosterMax, lastFilled + 1);
+      team.roster = Array.from({ length: count }, (_, i) => ({ ...(team.roster[i] || defaultRoster(1)[0]), libero: rule.liberoMax ? Boolean(team.roster[i]?.libero) : false }));
+    });
+  }
+  target.competitionProfile = profileId;
 }
 
 export function matchFormatLabel() {
@@ -297,7 +328,7 @@ export function createSet(number, lineups, firstServer) {
     firstServer,
     servingTeam: firstServer,
     rotationIndex: [0, 0],
-    serviceRounds: Array.from({ length: 2 }, () => Array.from({ length: 6 }, () => [])),
+    serviceRounds: lineups.map(lineup => lineup.map(() => [])),
     timeouts: [[], []],
     substitutions: [[], []],
     liberoReplacements: [[], []],
@@ -325,6 +356,7 @@ export function playerName(teamIndex, number) {
 }
 
 export function liberoPlayers(teamIndex) {
+  if (!currentRule().liberoMax) return [];
   const control = state.match?.liberoControl?.[teamIndex];
   const redesignated = new Set((control?.redesignations || []).map(item => item.number));
   const unavailable = new Set(control?.unavailable || []);
