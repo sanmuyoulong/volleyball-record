@@ -177,7 +177,7 @@ export async function parseRosterFile(file) {
   throw new Error("请选择 .xlsx 或 .csv 文件；旧版 .xls 请先在 Excel 中另存为 .xlsx。");
 }
 
-export function normalizeRosterRows(rows, { minimumPlayers = 6 } = {}) {
+export function normalizeRosterRows(rows, { minimumPlayers = 6, maximumPlayers = 14, maximumLiberos = 2 } = {}) {
   const cleanRows = (rows || []).map(row => Array.from(row || [], value => String(value ?? "").trim())).filter(row => row.some(Boolean));
   const headerRowIndex = cleanRows.slice(0, 10).findIndex(row => headerIndex(row, HEADER_ALIASES.number) >= 0 && headerIndex(row, HEADER_ALIASES.name) >= 0);
   if (headerRowIndex < 0) throw new Error("未找到表头。至少需要“号码”和“姓名”两列。");
@@ -201,10 +201,10 @@ export function normalizeRosterRows(rows, { minimumPlayers = 6 } = {}) {
     captain ||= valueAt(row, "captainNumber").replace(/\.0$/, "");
   });
   if (players.length < minimumPlayers) throw new Error(minimumPlayers === 6 ? "有效队员少于 6 人，不能组成比赛阵容。" : `请至少填写 ${minimumPlayers} 名有效队员。`);
-  if (players.length > 14) throw new Error("当前记录表最多支持 14 名队员，请精简名单后再导入。");
+  if (players.length > maximumPlayers) throw new Error(`当前记录表最多支持 ${maximumPlayers} 名队员，请精简名单后再导入。`);
   const numbers = players.map(player => player.number);
   if (new Set(numbers).size !== numbers.length) throw new Error("名单中存在重复号码。");
-  if (players.filter(player => player.libero).length > 2) throw new Error("自由人不能超过 2 名。");
+  if (players.filter(player => player.libero).length > maximumLiberos) throw new Error(maximumLiberos === 0 ? "气排球不设自由人，请移除自由人标记后再导入。" : `自由人不能超过 ${maximumLiberos} 名。`);
   if (captainMarkers.length > 1) throw new Error("名单中标记了多名队长，请只保留一名。");
   if (captainMarkers.length === 1) captain = captainMarkers[0];
   if (captain && !numbers.includes(captain)) throw new Error("队长号码不在导入的队员名单中。");

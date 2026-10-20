@@ -24,11 +24,12 @@ export async function prepareManagedRecord() {
         if (error) throw error;
         const next = copy(record);
         if (mode === "score") {
+          if (!locked(record)) next.meta.matchFormat = snapshot.meta.matchFormat;
           next.scoring = snapshot;
           next.scoring.matchId = next.id; next.scoring.tournamentId = next.tournamentId;
           // Only roster edits before the first recorded action change the shared snapshot.
           if (!record.scoring?.match) next.teams = snapshot.teams.map((team, i) => ({ ...copy(team), id: record.teams[i].id, name: record.teams[i].name }));
-          next.scoring.meta = { ...snapshot.meta, ...record.meta };
+          next.scoring.meta = { ...snapshot.meta, ...next.meta };
           next.scoring.teams = snapshot.teams.map((team, i) => ({ ...copy(team), id: next.teams[i].id, name: next.teams[i].name }));
         } else {
           const normalized = statsData({ ...next, statistics: { ...next.statistics, [side]: snapshot } }, side);

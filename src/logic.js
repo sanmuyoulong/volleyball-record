@@ -18,6 +18,8 @@ import {
   state,
   currentSet,
   currentProfile,
+  currentRule,
+  rotationLabels,
   createSet,
   rosterNumbers,
   isLiberoNumber,
@@ -28,8 +30,7 @@ import {
   matchSnapshot,
   saveRecoverySnapshot,
   genderFromMatch,
-  isMixedGender,
-  roman
+  isMixedGender
 } from "./state.js";
 import { recordAuditAction, reverseLatestAction, latestReversibleAction } from "./audit.js";
 import { toast, modalRoot, app } from "./ui.js";
@@ -42,10 +43,10 @@ export function awardPoint(teamIndex, shouldRender = true, source = "rally") {
   const wasServing = set.servingTeam === teamIndex;
   set.score[teamIndex] += 1;
   set.rallies.push({ winner: teamIndex, at: formatClock(), source, teamPoint: set.score[teamIndex] });
-  if (!wasServing) {
+  if (!wasServing || currentRule().rotateEveryPoint) {
     const previousTeam = set.servingTeam;
     closeActiveServiceRound(set, previousTeam);
-    set.rotationIndex[teamIndex] = rotateServiceIndex(set.rotationIndex[teamIndex]);
+    set.rotationIndex[teamIndex] = rotateServiceIndex(set.rotationIndex[teamIndex], currentRule().playersOnCourt);
     set.servingTeam = teamIndex;
     set.serviceRounds[teamIndex][set.rotationIndex[teamIndex]].push({
       active: true,
@@ -53,7 +54,7 @@ export function awardPoint(teamIndex, shouldRender = true, source = "rally") {
       endScore: null
     });
     const server = servicePlayer(set.onCourt[teamIndex], set.rotationIndex[teamIndex]);
-    set.events.push({ time: formatClock(), text: source === "sanction" ? `${state.teams[teamIndex].name} 因对方判罚得分并获得发球权，轮转后由 ${server} 号发球。` : `${state.teams[teamIndex].name} 得分并获得发球权，轮转后由 ${server} 号发球。` });
+    set.events.push({ time: formatClock(), text: `${state.teams[teamIndex].name} ${source === "sanction" ? "因对方判罚得分" : "得分"}${wasServing ? "并保有发球权" : "并获得发球权"}，轮转后由 ${server} 号发球。` });
   } else {
     set.events.push({ time: formatClock(), text: source === "sanction" ? `${state.teams[teamIndex].name} 因对方判罚得分，继续发球。` : `${state.teams[teamIndex].name} 得分，继续发球。` });
   }
@@ -61,7 +62,7 @@ export function awardPoint(teamIndex, shouldRender = true, source = "rally") {
     set.courtChanged = true;
     set.events.push({ time: formatClock(), text: `领先队达到 8 分，双方交换场区；轮次保持不变。` });
   }
-  if (isSetComplete(set.score[0], set.score[1], set.number, state.match.maxSets)) finishSet(set);
+  if (isSetComplete(set.score[0], set.score[1], set.number, state.match.maxSets, state.selectedRule)) finishSet(set);
   if (source !== "sanction") recordAuditAction("score", `${state.teams[teamIndex].name} +1`, before, { teamIndex, source });
   if (shouldRender) {
     state.viewSetIndex = state.match.currentSetIndex;
@@ -167,6 +168,7 @@ export function applySanction(teamIndex, requestedKind, target, note, shouldRend
 }
 
 export function performLiberoReplacement(teamIndex, action, regular, libero, shouldRender = true) {
+  if (!currentRule().liberoMax) return { ok: false, message: "气排球不设自由人。" };
   const set = currentSet();
   const control = set.liberoState[teamIndex];
   if (!canMakeLiberoReplacement(control.lastReplacementRally, set.rallies.length)) return { ok: false, message: "两次自由人替换之间必须完成一个回合。" };
@@ -218,6 +220,7 @@ export function performLiberoReplacement(teamIndex, action, regular, libero, sho
 }
 
 export function applyLiberoRedesignation(teamIndex, unavailableNumber, newLiberoNumber, reason, shouldRender = true) {
+  if (!currentRule().liberoMax) return { ok: false, message: "气排球不设自由人。" };
   const set = currentSet();
   const matchControl = state.match.liberoControl[teamIndex];
   const setControl = set.liberoState[teamIndex];
@@ -269,6 +272,7 @@ export function applyLiberoRedesignation(teamIndex, unavailableNumber, newLibero
 
 export function performSubstitution(teamIndex, out, incoming, shouldRender = true) {
   const set = currentSet();
+  if (set.ended) return { ok: false, message: "本局已结束。" };
   const max = currentProfile().substitutionsPerSet;
   if (!out || !incoming) return { ok: false, message: "请选择离场和上场球员号码。" };
   if (set.subCount[teamIndex] >= max) return { ok: false, message: `本局已达到 ${max} 次普通换人上限。` };
@@ -280,7 +284,10 @@ export function performSubstitution(teamIndex, out, incoming, shouldRender = tru
   const before = matchSnapshot();
   const starter = set.lineups[teamIndex].includes(out);
   let original = out;
-  if (starter) {
+  if (currentRule().unrestrictedSubstitutions) {
+    // Air volleyball permits players to enter at any rotation slot within the per-set limit.
+    original = set.lineups[teamIndex][courtIndex];
+  } else if (starter) {
     const pair = set.subPairs[teamIndex][out];
     if (pair?.returned) return { ok: false, message: `${out} 号已完成一次离场和重新上场，不能再次进行普通换人。` };
     if (pair && pair.substitute !== incoming) return { ok: false, message: `${out} 号只能与先前登记的 ${pair.substitute} 号完成换回。` };
@@ -307,7 +314,8 @@ export function performSubstitution(teamIndex, out, incoming, shouldRender = tru
 }
 
 export function startMatch() {
-  const maxSets = Number(state.meta.matchFormat) === 3 ? 3 : 5;
+  const maxSets = state.selectedRule === "air" ? 3 : Number(state.meta.matchFormat) === 3 ? 3 : 5;
+  state.meta.matchFormat = String(maxSets);
   state.match = {
     startedAt: formatClock(),
     endedAt: "",
@@ -335,10 +343,9 @@ export function startMatch() {
 }
 
 export function loadDemoMatch() {
-  state.selectedRule = "modern";
-  state.competitionProfile = "test2026";
+  const air = state.selectedRule === "air";
   state.meta = {
-    competition: "2026 城市排球邀请赛",
+    competition: air ? "2026 城市气排球邀请赛" : "2026 城市排球邀请赛",
     date: "2026-08-28",
     scheduledTime: "19:30",
     venue: "滨江综合体育馆",
@@ -346,7 +353,7 @@ export function loadDemoMatch() {
     matchNo: "A-07",
     category: "成年组",
     gender: "男子",
-    matchFormat: "5"
+    matchFormat: String(currentRule().maxSets)
   };
   applyDemoRosters();
   state.officials = {
@@ -357,7 +364,9 @@ export function loadDemoMatch() {
     lineJudge1: "罗晨",
     lineJudge2: "方卓"
   };
-  state.firstLineups = [["8", "4", "12", "2", "5", "13"], ["1", "9", "6", "11", "3", "7"]];
+  state.firstLineups = air
+    ? [["8", "4", "2", "5", "3"], ["1", "9", "6", "3", "7"]]
+    : [["8", "4", "12", "2", "5", "13"], ["1", "9", "6", "11", "3", "7"]];
   state.firstServer = 0;
   startMatch();
   const sequence = [0,0,0,1,1,0,1,0,0,1,0,1,0,1];
@@ -365,7 +374,7 @@ export function loadDemoMatch() {
   const set = currentSet();
   set.timeouts[1].push(`${set.score[1]}:${set.score[0]}`);
   set.events.push({ time: formatClock(), text: `${state.teams[1].name} 请求第 1 次暂停（${set.score[1]}:${set.score[0]}）。` });
-  performSubstitution(0, "13", "7", false);
+  performSubstitution(0, air ? "3" : "13", "7", false);
   render();
 }
 
@@ -376,6 +385,9 @@ export function applyDemoRosters() {
     { name: "海风俱乐部", coach: "秦牧", captain: "8", roster: namesA.map((name, index) => ({ number: String(index + 1), name, libero: [5, 9].includes(index), gender: index % 3 === 2 ? "女" : "男" })) },
     { name: "北辰体育", coach: "陆明", captain: "1", roster: namesB.map((name, index) => ({ number: String(index + 1), name, libero: [4, 13].includes(index), gender: index % 3 === 1 ? "女" : "男" })) }
   ];
+  if (state.selectedRule === "air") state.teams.forEach(team => {
+    team.roster = team.roster.slice(0, currentRule().rosterMax).map(player => ({ ...player, libero: false }));
+  });
 }
 
 export function readSetupStep(validate) {
@@ -404,7 +416,8 @@ export function readSetupStep(validate) {
       if (state.teams.some(team => !team.name)) return { ok: false, message: "请填写两支队伍的名称。" };
       for (const team of state.teams) {
         const players = team.roster.filter(player => player.number && player.name);
-        if (players.length < 6) return { ok: false, message: `${team.name} 至少需要 6 名有号码和姓名的球员。` };
+        if (players.length < currentRule().rosterMin) return { ok: false, message: `${team.name} 至少需要 ${currentRule().rosterMin} 名有号码和姓名的球员。` };
+        if (players.length > currentRule().rosterMax) return { ok: false, message: `${team.name} 最多登记 ${currentRule().rosterMax} 名队员，请精简名单。` };
         const numbers = players.map(player => player.number);
         if (new Set(numbers).size !== numbers.length) return { ok: false, message: `${team.name} 存在重复号码。` };
         if (players.filter(player => player.libero).length > 2) return { ok: false, message: `${team.name} 最多标记 2 名自由人。` };
@@ -417,11 +430,11 @@ export function readSetupStep(validate) {
     if (validate && ["firstReferee", "secondReferee", "scorer"].some(key => !state.officials[key])) return { ok: false, message: "请至少填写第一裁判员、第二裁判员和记录员。" };
   }
   if (state.setupStep === 4) {
-    state.firstLineups = state.teams.map((_, teamIndex) => roman.map((__, positionIndex) => String(data.get(`setup-lineup-${teamIndex}-${positionIndex}`) || "").trim()));
+    state.firstLineups = state.teams.map((_, teamIndex) => rotationLabels().map((__, positionIndex) => String(data.get(`setup-lineup-${teamIndex}-${positionIndex}`) || "").trim()));
     state.firstServer = Number(data.get("firstServer") || 0);
     if (validate) {
       for (let teamIndex = 0; teamIndex < 2; teamIndex++) {
-        const result = validateLineup(state.firstLineups[teamIndex], rosterNumbers(teamIndex));
+        const result = validateLineup(state.firstLineups[teamIndex], rosterNumbers(teamIndex), currentRule().playersOnCourt);
         if (!result.ok) return { ok: false, message: `${state.teams[teamIndex].name}：${result.message}` };
         const liberos = state.teams[teamIndex].roster.filter(player => player.libero).map(player => player.number);
         if (state.firstLineups[teamIndex].some(number => liberos.includes(number))) return { ok: false, message: `${state.teams[teamIndex].name} 的首发轮次中不能直接登记自由人。` };

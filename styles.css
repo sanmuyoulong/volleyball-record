@@ -438,6 +438,9 @@ a.module-ready:hover { background: #0f52d5; }
 .lineup-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
 .lineup-card-head strong { font-size: 14px; }
 .court-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.court-grid.five-player .position-i { grid-column: 3; }
+.roster-head.without-libero, .roster-row.without-libero { grid-template-columns: 58px minmax(0, 1fr); }
+.roster-head.with-gender.without-libero, .roster-row.with-gender.without-libero { grid-template-columns: 54px minmax(0, 1fr) 68px; }
 .court-position { position: relative; }
 .court-position span { position: absolute; top: 7px; left: 9px; color: #8e96a1; font-size: 10px; font-weight: 800; }
 .court-position input { width: 100%; height: 66px; padding: 22px 8px 7px; text-align: center; border: 1px solid #cfd5dc; border-radius: var(--radius-sm); font-size: 18px; font-weight: 800; }
@@ -560,6 +563,8 @@ a.module-ready:hover { background: #0f52d5; }
 .serve-receive i { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid #555; border-radius: 50%; font-style: normal; font-size: 10px; font-weight: 900; }
 .serve-receive i.active { color: white; background: var(--orange); border-color: var(--orange); }
 .rotation-table { display: grid; grid-template-columns: repeat(6, minmax(56px, 1fr)); border-bottom: 2px solid var(--ink); overflow-x: auto; }
+.air-sheet .sheet-lineup-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.air-sheet .rotation-table { grid-template-columns: repeat(5, minmax(56px, 1fr)); }
 .rotation-cell { min-width: 56px; border-right: 1px solid #777; }
 .rotation-cell:last-child { border-right: 0; }
 .roman { height: 31px; display: grid; place-items: center; border-bottom: 1px solid #777; font-family: Georgia, serif; font-size: 17px; font-weight: 700; }
@@ -878,6 +883,7 @@ a.module-ready:hover { background: #0f52d5; }
   .print-set-page .sheet-shell { width: 100%; margin: 0; border-radius: 0; box-shadow: none; zoom: .82; }
   .print-set-page .sheet-head { padding-block: 10px; }
   .print-set-page .rotation-table { grid-template-columns: repeat(6, minmax(0, 1fr)); overflow: visible; }
+  .print-set-page .air-sheet .rotation-table { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .print-set-page .rotation-cell, .print-set-page .point-cell { min-width: 0; }
   .print-set-page .sheet-personnel { break-inside: avoid; }
   .print-set-page .set-record, .print-set-page .sheet-summary { break-inside: avoid; }
