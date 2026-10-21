@@ -14,6 +14,9 @@ for (const [key, path] of [["home", "index.html"], ["record", "record/index.html
   const title = html.match(/<title>([\s\S]*?)<\/title>/i)?.[1];
   if (!body || !title) throw Error(`Missing HTML page: ${path}`);
   pages[key] = { title, body: body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "") };
+  // Keep the single-file app lightweight and self-contained. The tutorial is
+  // delivered separately with its MP4 rather than linking to an absent route.
+  if (key === "help") pages[key].body = pages[key].body.replace(/<!-- tutorial:start -->[\s\S]*?<!-- tutorial:end -->/, '<section class="help-section" id="video" aria-labelledby="video-title"><h2 id="video-title">全流程操作视频</h2><p>视频教程为独立文件。请打开随视频提供的“按章节播放.html”，并将它与视频文件放在同一目录。下方文字指南可直接离线阅读。</p></section>');
 }
 
 const imports = {};

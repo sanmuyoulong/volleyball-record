@@ -1390,6 +1390,10 @@ a.console-panel { color: inherit; text-decoration: none; }
 .help-toc a { color: var(--muted); padding: 8px; font-size: 13px; text-decoration: none; border-radius: 6px; }
 .help-toc a:hover, .help-toc a:focus-visible { background: var(--blue-soft); color: var(--blue); }
 .help-content { min-width: 0; }
+.help-video { container-type: inline-size; }
+.help-video-intro { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 20px; margin: 16px 0; font-size: 13px; color: var(--muted); }
+.help-video-intro a { color: var(--blue); font-weight: 600; text-underline-offset: 4px; }
+.help-video-frame { display: block; width: 100%; height: 800px; height: calc(56.25cqw + 290px); border: 1px solid var(--line); border-radius: 14px; background: #f3f6fb; }
 .help-section { scroll-margin-top: 24px; padding-bottom: 36px; margin-bottom: 36px; border-bottom: 1px solid var(--line); line-height: 1.9; }
 .help-section h2 { margin: 0 0 18px; font-size: 25px; line-height: 1.4; }
 .help-section h3 { margin: 22px 0 8px; font-size: 17px; }
