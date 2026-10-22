@@ -11,6 +11,8 @@
     "test:advanced": "node scripts/advanced-flow-check.mjs",
     "test:score-sides": "node scripts/score-sides-check.mjs",
     "test:score-sides:offline": "node scripts/score-sides-check.mjs --offline",
+    "test:auto-sides": "node scripts/auto-sides-check.mjs",
+    "test:auto-sides:offline": "node scripts/auto-sides-check.mjs --offline",
     "test:statistics": "node scripts/statistics-flow-check.mjs",
     "test:statistics-import": "node scripts/statistics-roster-import-check.mjs",
     "test:statistics-analysis": "node scripts/statistics-analysis-check.mjs",

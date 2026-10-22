@@ -25,6 +25,8 @@ export async function prepareManagedRecord() {
         const next = copy(record);
         if (mode === "score") {
           if (!locked(record)) next.meta.matchFormat = snapshot.meta.matchFormat;
+          // 换边安排可在计分页按赛事规程调整；共享元信息不能覆盖刚保存的选择。
+          next.meta.courtSwitchPolicy = snapshot.meta.courtSwitchPolicy || "auto";
           next.scoring = snapshot;
           next.scoring.matchId = next.id; next.scoring.tournamentId = next.tournamentId;
           // Only roster edits before the first recorded action change the shared snapshot.

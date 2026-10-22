@@ -74,8 +74,8 @@ try {
       await page.evaluate(() => { while (!window.__volley.getState().match.sets[0].ended) window.__volley.awardPoint(0); });
       await page.locator("#next-lineup").click();
       await page.locator("#start-next-set").click();
-      assert.match(await page.locator(".scoreboard .set-history-item").textContent(), /6\s*:\s*25/);
-      assert.deepEqual(await order(), [1, 0], "Next set preserves the manual display choice");
+      assert.match(await page.locator(".scoreboard .set-history-item").textContent(), /25\s*:\s*6/);
+      assert.deepEqual(await order(), [0, 1], "Next ordinary set switches automatically, retaining the manual offset");
     }
     // Older backups did not store the display preference.
     delete backup.state.scoreSidesSwapped;

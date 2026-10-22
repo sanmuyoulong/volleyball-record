@@ -14,6 +14,7 @@ import {
   validateLineup
 } from "./rules.js";
 import { resultFromMatch } from "./tournament-rules.js";
+import { courtPolicy, nextSetLeftTeam } from "./court-sides.js";
 
 export const STORAGE_KEY = "volley-record-state-v1";
 export const SNAPSHOT_KEY = "volley-record-recovery-v1";
@@ -64,7 +65,8 @@ export function initialState() {
       matchNo: "",
       category: "成年组",
       gender: "男子",
-      matchFormat: "5"
+      matchFormat: "5",
+      courtSwitchPolicy: "auto"
     },
     teams: [
       { name: "", coach: "", captain: "", roster: defaultRoster() },
@@ -102,6 +104,7 @@ export function normalizeState(saved) {
   restored.selectedRule = RULESETS[saved.selectedRule] ? saved.selectedRule : "modern";
   if (!["record", "setup", "score"].includes(restored.screen)) restored.screen = "record";
   restored.scoreSidesSwapped = saved.scoreSidesSwapped === true;
+  if (!["auto", "standard", "vnl2026"].includes(restored.meta.courtSwitchPolicy)) restored.meta.courtSwitchPolicy = "auto";
   if (restored.selectedRule === "air") restored.competitionProfile = "air2026";
   else if (!["official", "test2026"].includes(restored.competitionProfile)) restored.competitionProfile = "official";
   // 旧存档的队员没有 gender 字段，这里补齐，混合比赛选人时才有值可用。
@@ -124,9 +127,14 @@ export function normalizeState(saved) {
     restored.match.endConfirmation = restored.match.endConfirmation || null;
     restored.match.sets = restored.match.sets.map(set => ({
       ...set,
+      initialLeftTeam: [0, 1].includes(set.initialLeftTeam) ? set.initialLeftTeam : Number(Boolean(set.courtChanged)),
       liberoReplacements: set.liberoReplacements || [[], []],
       liberoState: set.liberoState || [0, 1].map(() => ({ active: null, lastReplacementRally: -1 })),
       sanctions: set.sanctions || []
+    }));
+    // 旧撤销快照也要迁移，否则在 8 分前后撤销再加分时会丢失场区基准。
+    restored.match.auditLog.forEach(entry => entry.before?.sets?.forEach(set => {
+      if (![0, 1].includes(set.initialLeftTeam)) set.initialLeftTeam = Number(Boolean(set.courtChanged));
     }));
   }
   return restored;
@@ -319,9 +327,15 @@ export function matchFormatLabel() {
   return Number(state.match?.maxSets || state.meta.matchFormat) === 3 ? "三局两胜" : "五局三胜";
 }
 
-export function createSet(number, lineups, firstServer) {
+export function currentCourtPolicy() {
+  return courtPolicy(state.competitionProfile, state.match?.maxSets || state.meta.matchFormat, state.meta.courtSwitchPolicy);
+}
+
+export function createSet(number, lineups, firstServer, initialLeftTeam) {
+  const previous = number > 1 ? state.match?.sets.at(-1) : null;
   const set = {
     number,
+    initialLeftTeam: [0, 1].includes(initialLeftTeam) ? initialLeftTeam : (previous ? nextSetLeftTeam(previous, number, state.match.maxSets, currentCourtPolicy()) : 0),
     startTime: formatClock(),
     endTime: "",
     score: [0, 0],

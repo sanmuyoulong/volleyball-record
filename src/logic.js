@@ -34,6 +34,7 @@ import {
 } from "./state.js";
 import { recordAuditAction, reverseLatestAction, latestReversibleAction } from "./audit.js";
 import { toast, modalRoot, app } from "./ui.js";
+import { shouldChangeAtEight } from "./court-sides.js";
 import { render, renderScore, openMatchEndConfirmationModal, openSetEndModal, openTimeoutModal } from "./render.js";
 
 export function awardPoint(teamIndex, shouldRender = true, source = "rally") {
@@ -58,7 +59,8 @@ export function awardPoint(teamIndex, shouldRender = true, source = "rally") {
   } else {
     set.events.push({ time: formatClock(), text: source === "sanction" ? `${state.teams[teamIndex].name} 因对方判罚得分，继续发球。` : `${state.teams[teamIndex].name} 得分，继续发球。` });
   }
-  if (set.number === state.match.maxSets && !set.courtChanged && Math.max(...set.score) >= 8) {
+  const changedAtEight = shouldChangeAtEight(set, state.match.maxSets);
+  if (changedAtEight) {
     set.courtChanged = true;
     set.events.push({ time: formatClock(), text: `领先队达到 8 分，双方交换场区；轮次保持不变。` });
   }
@@ -67,6 +69,7 @@ export function awardPoint(teamIndex, shouldRender = true, source = "rally") {
   if (shouldRender) {
     state.viewSetIndex = state.match.currentSetIndex;
     render();
+    if (changedAtEight) toast("决胜局领先队到 8 分，已自动换边；场上轮次保持不变。");
   }
 }
 
@@ -354,7 +357,8 @@ export function loadDemoMatch() {
     matchNo: "A-07",
     category: "成年组",
     gender: "男子",
-    matchFormat: String(currentRule().maxSets)
+    matchFormat: String(currentRule().maxSets),
+    courtSwitchPolicy: "auto"
   };
   applyDemoRosters();
   state.officials = {

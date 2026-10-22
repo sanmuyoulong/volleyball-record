@@ -67,7 +67,10 @@ try {
   await page.getByText("返回比赛详情", { exact: true }).click(); await ready("开始计分");
   await page.getByText("开始计分", { exact: true }).click(); await page.locator("#start-setup").waitFor(); await settle(page);
   // Existing engine still operates inside its own match envelope.
-  await page.evaluate(() => { const s = window.__volley.getState(); s.firstLineups = [["1", "2", "3", "4", "5", "6"], ["1", "2", "3", "4", "5", "6"]]; window.__volley.startMatch(); window.__volley.awardPoint(0); }); await settle(page);
+  await page.evaluate(() => { const s = window.__volley.getState(); s.meta.courtSwitchPolicy = "standard"; s.firstLineups = [["1", "2", "3", "4", "5", "6"], ["1", "2", "3", "4", "5", "6"]]; window.__volley.startMatch(); window.__volley.awardPoint(0); }); await settle(page);
+  assert.equal(await page.evaluate(() => window.__managedRecord.record.meta.courtSwitchPolicy), "standard");
+  await page.reload(); await page.locator(".scoreboard").waitFor(); await settle(page);
+  assert.equal(await page.evaluate(() => window.__volley.getState().meta.courtSwitchPolicy), "standard", "Managed match keeps selected court policy after reload");
   assert.equal(await page.evaluate(() => window.__managedRecord.record.scoring.match.sets[0].score[0]), 1);
   assert.equal(await page.evaluate(() => localStorage.getItem("volley-record-statistics-v1")), guest);
   await page.getByText("返回比赛详情", { exact: true }).click(); await ready("主队技术统计");

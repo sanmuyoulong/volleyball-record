@@ -14,6 +14,7 @@ import {
   state,
   currentSet,
   currentProfile,
+  currentCourtPolicy,
   matchFormatLabel,
   createSet,
   rosterNumbers,
@@ -56,6 +57,7 @@ import {
 } from "./logic.js";
 import { normalizeRosterRows, parseRosterFile } from "./roster-import.js";
 import { currentRule, rotationLabels, selectCompetitionProfile } from "./state.js";
+import { COURT_SOURCES, courtPolicyLabel, courtPolicyDescription, needsDecidingCourtChoice, scoreTeamOrder } from "./court-sides.js";
 
 export function render() {
   modalRoot.replaceChildren();
@@ -154,6 +156,7 @@ export function matchInfoForm() {
       <div class="field"><label>比赛赛制 <span>*</span></label><select name="matchFormat">${state.selectedRule === "air" ? "" : `<option value="5" ${String(m.matchFormat) === "5" ? "selected" : ""}>五局三胜</option>`}<option value="3" ${String(m.matchFormat) === "3" ? "selected" : ""}>三局两胜</option></select></div>
       <div class="field"><label>组别</label><select name="category">${["成年组","青年组","少年组"].map(v => `<option ${m.category === v ? "selected" : ""}>${v}</option>`).join("")}</select></div>
       <div class="field"><label>性别</label><select name="gender">${["男子","女子","混合"].map(v => `<option ${m.gender === v ? "selected" : ""}>${v}</option>`).join("")}</select></div>
+      ${state.competitionProfile === "test2026" ? `<div class="field full"><label>五局三胜换边安排</label>${courtPolicySelect("courtSwitchPolicy")}<small>2026 试行的 8 次换人与换边安排分开选择；其他指定赛事请按其规程选择正式基线。三局两胜均沿用逐局换边。</small></div>` : ""}
       ${profileSummary}
     </div>
     ${setupActions(1)}`;
@@ -413,7 +416,7 @@ export function renderScore() {
 }
 
 export function scoreboardHTML(set) {
-  const teamOrder = state.scoreSidesSwapped ? [1, 0] : [0, 1];
+  const teamOrder = scoreTeamOrder(set, state.scoreSidesSwapped);
   const controls = (team, side) => {
     const minus = `<button class="score-button" type="button" data-score-action="minus" data-team="${team}" ${canUndoTeam(team) ? "" : "disabled"}>− 1</button>`;
     const plus = `<button class="score-button plus" type="button" data-score-action="plus" data-team="${team}" ${set.ended || liberoBlock !== undefined ? "disabled" : ""}>+ 1</button>`;
@@ -427,7 +430,7 @@ export function scoreboardHTML(set) {
     <section class="scoreboard">
       <div class="scoreboard-top">
         ${teamScoreHTML(teamOrder[0], set, 0)}
-        <div class="set-center"><small>CURRENT SET</small><strong>${set.number}</strong><span>目标 ${setTarget(set.number, state.match.maxSets, state.selectedRule)} 分 · 领先 2 分</span><button class="score-swap-button" type="button" data-score-action="swap-sides" aria-label="交换双方比分显示位置" aria-pressed="${state.scoreSidesSwapped}" title="交换左右显示位置，比赛数据仍归属原队伍">⇄ 换边</button></div>
+        <div class="set-center"><small>CURRENT SET</small><strong>${set.number}</strong><span>目标 ${setTarget(set.number, state.match.maxSets, state.selectedRule)} 分 · 领先 2 分</span><button class="score-swap-button" type="button" data-score-action="swap-sides" aria-label="交换双方比分显示位置" aria-pressed="${teamOrder[0] === 1}" title="交换左右显示位置，比赛数据仍归属原队伍">⇄ 换边</button><button class="court-policy-button" type="button" data-score-action="court-settings" title="查看自动换边安排">自动 · ${courtPolicyLabel(currentCourtPolicy())}</button></div>
         ${teamScoreHTML(teamOrder[1], set, 1)}
       </div>
       ${setHistoryHTML(false, teamOrder)}
@@ -465,7 +468,7 @@ export function canUndoTeam(teamIndex) {
 }
 
 export function operationsHTML(set) {
-  const teamOrder = state.scoreSidesSwapped ? [1, 0] : [0, 1];
+  const teamOrder = scoreTeamOrder(set, state.scoreSidesSwapped);
   const maxSubs = currentProfile().substitutionsPerSet;
   return `<aside class="operations">
     <section class="operation-card">
@@ -655,8 +658,10 @@ export function bindScoreActions() {
       state.scoreSidesSwapped = !state.scoreSidesSwapped;
       renderScore();
       saveState();
-      toast(`已换边：${state.teams[state.scoreSidesSwapped ? 1 : 0].name} 在左，${state.teams[state.scoreSidesSwapped ? 0 : 1].name} 在右。`);
+      const order = scoreTeamOrder(currentSet(), state.scoreSidesSwapped);
+      toast(`已换边：${state.teams[order[0]].name} 在左，${state.teams[order[1]].name} 在右。`);
     }
+    if (action === "court-settings") openCourtSettingsModal();
     if (action === "timeout") requestTimeout(team);
     if (action === "substitution") openSubstitutionModal(team);
     if (action === "libero") openLiberoModal(team);
@@ -806,14 +811,31 @@ export function openSetEndModal(set) {
   modalRoot.querySelector("#next-lineup").addEventListener("click", () => openLineupModal(set.number + 1));
 }
 
+function courtPolicySelect(name) {
+  return `<select name="${name}"><option value="vnl2026" ${state.meta.courtSwitchPolicy !== "standard" ? "selected" : ""}>VNL 2026：局间仅第 2 局后换边</option><option value="standard" ${state.meta.courtSwitchPolicy === "standard" ? "selected" : ""}>正式基线：普通局之间逐局换边</option></select>`;
+}
+
+export function openCourtSettingsModal() {
+  const policy = currentCourtPolicy();
+  const canChoose = state.competitionProfile === "test2026" && state.match.maxSets === 5;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal"><div class="modal-head"><div><h2>自动换边安排</h2><p>${escapeHTML(currentProfile().label)} · ${matchFormatLabel()}</p></div><button class="icon-button" id="close-court-settings" type="button">×</button></div><p>${courtPolicyDescription(policy)}</p>${canChoose ? `<div class="field"><label>按本场赛事规程选择</label>${courtPolicySelect("courtSwitchPolicy")}</div><p>“每局 8 次换人”的试行不代表所有赛事都使用 VNL 换边安排。修改仅影响后续局间换边，不调整本局位置。</p>` : ""}<p>默认主队在左；可用“⇄ 换边”按实际场区校准。换边只交换显示，双方数据归属和场上轮次保持不变。撤销到决胜局 8 分前时，自动恢复换边前的位置。</p><p><a href="${state.selectedRule === "air" ? currentRule().source : COURT_SOURCES.standard}" target="_blank" rel="noopener noreferrer">${state.selectedRule === "air" ? "气排球规则依据" : "正式规则 §7.1、§18.2"}</a>${canChoose ? ` · <a href="${COURT_SOURCES.vnl2026}" target="_blank" rel="noopener noreferrer">VNL 2026 规程 §6.9(d)</a>` : ""}</p><div class="modal-actions"><button class="primary-button blue" id="save-court-settings" type="button">${canChoose ? "保存安排" : "知道了"}</button></div></section></div>`;
+  modalRoot.querySelector("#close-court-settings").onclick = () => modalRoot.replaceChildren();
+  modalRoot.querySelector("#save-court-settings").onclick = () => {
+    if (canChoose) state.meta.courtSwitchPolicy = modalRoot.querySelector('[name="courtSwitchPolicy"]').value;
+    render();
+  };
+}
+
 export function openLineupModal(nextNumber) {
   const previous = currentSet();
   const suggestedLineups = previous.onCourt.map((lineup, teamIndex) => lineup.map(number => {
     return isLiberoNumber(teamIndex, number) ? (previous.liberoState[teamIndex].active?.regular || previous.lineups[teamIndex][lineup.indexOf(number)]) : number;
   }));
   const isDecidingSet = nextNumber === state.match.maxSets;
+  const needsCourtChoice = needsDecidingCourtChoice(nextNumber, state.match.maxSets, currentCourtPolicy());
+  const courtChoice = needsCourtChoice ? `<div class="field"><label for="next-left-team">决胜局重新掷币后，哪队在左侧？</label><select id="next-left-team"><option value="">请选择掷币结果</option>${state.teams.map((team, index) => `<option value="${index}">${escapeHTML(team.name)} 在左</option>`).join("")}</select></div>` : "";
   const suggestedServer = isDecidingSet ? 0 : 1 - previous.firstServer;
-  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal wide"><div class="modal-head"><div><h2>第 ${nextNumber} 局位置轮次表</h2><p>${isDecidingSet ? "决胜局应重新掷边，请确认首先发球的队伍。" : "请按教练提交的位置表重新填写，系统不会沿用上一局换人关系。"}</p></div></div>${setHistoryHTML(true)}<div class="lineup-modal-grid">${state.teams.map((team, index) => lineupCard(team, index, suggestedLineups[index], "next")).join("")}</div><div class="serve-choice">${state.teams.map((team, index) => `<label><input type="radio" name="nextServer" value="${index}" ${suggestedServer === index ? "checked" : ""} /> ${escapeHTML(team.name)} 先发球</label>`).join("")}</div><div id="modal-validation"></div><div class="modal-actions"><button class="primary-button blue" id="start-next-set" type="button">确认轮次并开始第 ${nextNumber} 局</button></div></section></div>`;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal wide"><div class="modal-head"><div><h2>第 ${nextNumber} 局位置轮次表</h2><p>${needsCourtChoice ? "决胜局应重新掷币，请确认场区和首先发球的队伍。" : (isDecidingSet ? "按 VNL 2026 安排沿用上一局场区，请确认首先发球的队伍。" : "请按教练提交的位置表重新填写，系统不会沿用上一局换人关系。")}</p></div></div>${setHistoryHTML(true)}<div class="lineup-modal-grid">${state.teams.map((team, index) => lineupCard(team, index, suggestedLineups[index], "next")).join("")}</div>${courtChoice}<div class="serve-choice">${state.teams.map((team, index) => `<label><input type="radio" name="nextServer" value="${index}" ${suggestedServer === index ? "checked" : ""} /> ${escapeHTML(team.name)} 先发球</label>`).join("")}</div><div id="modal-validation"></div><div class="modal-actions"><button class="primary-button blue" id="start-next-set" type="button">确认轮次并开始第 ${nextNumber} 局</button></div></section></div>`;
   modalRoot.querySelector("#start-next-set").addEventListener("click", () => {
     const lineups = state.teams.map((_, teamIndex) => rotationLabels().map((__, positionIndex) => modalRoot.querySelector(`[name="next-lineup-${teamIndex}-${positionIndex}"]`).value.trim()));
     for (let teamIndex = 0; teamIndex < 2; teamIndex++) {
@@ -829,12 +851,19 @@ export function openLineupModal(nextNumber) {
       }
     }
     const firstServer = Number(modalRoot.querySelector('[name="nextServer"]:checked').value);
+    const chosenLeft = modalRoot.querySelector("#next-left-team")?.value;
+    if (needsCourtChoice && !["0", "1"].includes(chosenLeft)) {
+      modalRoot.querySelector("#modal-validation").innerHTML = '<div class="validation-banner">请先选择决胜局重新掷币后的左侧队伍。</div>';
+      return;
+    }
     const before = matchSnapshot();
-    state.match.sets.push(createSet(nextNumber, lineups, firstServer));
+    const initialLeft = needsCourtChoice ? Number(chosenLeft) ^ Number(state.scoreSidesSwapped) : undefined;
+    state.match.sets.push(createSet(nextNumber, lineups, firstServer, initialLeft));
+    if (needsCourtChoice) state.match.sets.at(-1).events.push({ time: formatClock(), text: `决胜局重新掷币确认：${state.teams[Number(chosenLeft)].name} 在左侧。` });
     state.match.currentSetIndex += 1;
     state.match.undoStack = [];
     state.viewSetIndex = state.match.currentSetIndex;
-    recordAuditAction("set", `开始第 ${nextNumber} 局并写入双方轮次`, before, { nextNumber, firstServer });
+    recordAuditAction("set", `开始第 ${nextNumber} 局并写入双方轮次`, before, { nextNumber, firstServer, initialLeftTeam: state.match.sets.at(-1).initialLeftTeam, courtPolicy: currentCourtPolicy() });
     modalRoot.replaceChildren();
     render();
   });
