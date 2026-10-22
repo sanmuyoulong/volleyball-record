@@ -13,6 +13,8 @@
     "test:score-sides:offline": "node scripts/score-sides-check.mjs --offline",
     "test:auto-sides": "node scripts/auto-sides-check.mjs",
     "test:auto-sides:offline": "node scripts/auto-sides-check.mjs --offline",
+    "test:legal": "node scripts/legal-notice-check.mjs",
+    "test:legal:offline": "node scripts/legal-notice-check.mjs --offline",
     "test:statistics": "node scripts/statistics-flow-check.mjs",
     "test:statistics-import": "node scripts/statistics-roster-import-check.mjs",
     "test:statistics-analysis": "node scripts/statistics-analysis-check.mjs",

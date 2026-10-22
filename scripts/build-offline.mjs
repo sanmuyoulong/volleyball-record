@@ -13,7 +13,7 @@ for (const [key, path] of [["home", "index.html"], ["record", "record/index.html
   const body = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1];
   const title = html.match(/<title>([\s\S]*?)<\/title>/i)?.[1];
   if (!body || !title) throw Error(`Missing HTML page: ${path}`);
-  pages[key] = { title, body: body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "") };
+  pages[key] = { title, body: body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "").replace(/<link\b[^>]*href=["'][^"']*legal\.css["'][^>]*>/gi, "") };
   // Keep the single-file app lightweight and self-contained. The tutorial is
   // delivered separately with its MP4 rather than linking to an absent route.
   if (key === "help") pages[key].body = pages[key].body.replace(/<!-- tutorial:start -->[\s\S]*?<!-- tutorial:end -->/, '<section class="help-section" id="video" aria-labelledby="video-title"><h2 id="video-title">全流程操作视频</h2><p>视频教程为独立文件。请打开随视频提供的“按章节播放.html”，并将它与视频文件放在同一目录。下方文字指南可直接离线阅读。</p></section>');
@@ -30,20 +30,10 @@ for (const filename of (await readdir(resolve(projectRoot, "src"))).filter(p => 
   imports[`volley/${filename}`] = `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`;
 }
 
-const css = (await readFile(resolve(projectRoot, "styles.css"), "utf8")).replace(/<\/style/gi, "<\\/style");
+const css = (await Promise.all(["styles.css", "assets/legal.css"].map(path => readFile(resolve(projectRoot, path), "utf8")))).join("\n").replace(/<\/style/gi, "<\\/style");
 if (/url\s*\(/i.test(css)) throw Error("CSS gained external resources; inline them before making the offline release.");
 const icon = (await readFile(resolve(projectRoot, "assets/favicon.ico"))).toString("base64");
-const attribution = { statement: "已开源至 GitHub 仓库：", github: "https://github.com/sanmuyoulong/volleyball-record" };
-const attributionStyles = `
-.offline-authorship { width: min(1440px, calc(100% - 32px)); margin: 0 auto; padding: 20px 16px 28px; border-top: 1px solid #dce1e8; color: #5b6470; font-size: 12px; line-height: 1.8; text-align: center; }
-.offline-authorship span, .offline-authorship a { display: inline-block; margin: 0 8px; }
-.offline-authorship a { color: #155eef; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
-@media print {
-  #offline-authorship { display: block !important; position: fixed; left: 0; right: 0; bottom: 0; width: auto; margin: 0; padding: 0; border: 0; background: white; color: #5b6470; font-size: 6pt; line-height: 1; white-space: nowrap; z-index: 1000; }
-  body.printing-full-match > #offline-authorship { display: block !important; }
-  #offline-authorship a { color: inherit; text-decoration: none; }
-}
-`;
+const attribution = { statement: "源码公开，按项目许可使用", github: "https://github.com/sanmuyoulong/volleyball-record", license: "Volley Record 源码公开与使用许可 v1.0" };
 const metadata = { format: "volley-record-offline", version: 1, created: new Date().toISOString(), modules: Object.keys(imports).length, attribution };
 const bootstrap = `
 const pages = ${json(pages)};
@@ -52,15 +42,6 @@ const requestedPage = params.get("page") || (params.has("mode") || params.has("m
 const page = Object.hasOwn(pages, requestedPage) ? requestedPage : "home";
 document.title = pages[page].title + " · 离线版";
 document.body.innerHTML = pages[page].body;
-const authorship = document.createElement("footer");
-authorship.id = "offline-authorship";
-authorship.className = "offline-authorship";
-authorship.setAttribute("aria-label", "著作声明");
-authorship.innerHTML = '<span>${attribution.statement}</span><a href="${attribution.github}" target="_blank" rel="noopener noreferrer">github.com/sanmuyoulong/volleyball-record</a>';
-document.body.append(authorship);
-// 打印时提前放置固定页脚，确保第一页也带有仓库链接；屏幕中仍显示在页面底部。
-window.addEventListener("beforeprint", () => document.body.prepend(authorship));
-window.addEventListener("afterprint", () => document.body.append(authorship));
 const virtualOrigin = "https://offline.volley.invalid";
 const virtualBase = virtualOrigin + (page === "home" ? "/" : "/" + page + "/");
 
@@ -114,6 +95,7 @@ document.addEventListener("click", event => {
 const label = document.querySelector(".brand small");
 if (label) label.textContent += " · 离线版";
 try {
+  await import("volley/legal-notice.js");
   if (page === "record") await import("volley/record-entry.js");
   else if (page === "tournaments") await import("volley/tournaments-redirect.js");
   else if (page === "console") await import("volley/console.js");
@@ -136,7 +118,7 @@ const html = `<!doctype html>
 <link rel="author" href="${attribution.github}" />
 <title>Volley Record · 离线版</title>
 <link rel="icon" href="data:image/x-icon;base64,${icon}" />
-<style>${css}\n${attributionStyles}</style>
+<style>${css}</style>
 <script type="application/json" id="offline-package-info">${json(metadata)}</script>
 <script type="importmap">${json({ imports })}</script>
 </head><body><noscript>请使用允许 JavaScript 的浏览器打开此文件。</noscript>

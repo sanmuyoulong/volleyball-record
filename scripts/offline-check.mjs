@@ -47,6 +47,7 @@ try {
   await page.locator('[data-score-action="plus"][data-team="0"]').click();
   assert.equal(Number((await score())[0]), Number(baselineScore[0]) + 1);
   await page.reload();
+  await page.locator(".scoreboard").waitFor();
   assert.equal(Number((await score())[0]), Number(baselineScore[0]) + 1);
   await page.locator("#data-manager").click();
   const scoreDownload = page.waitForEvent("download");
