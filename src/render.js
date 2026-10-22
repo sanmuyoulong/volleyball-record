@@ -413,6 +413,12 @@ export function renderScore() {
 }
 
 export function scoreboardHTML(set) {
+  const teamOrder = state.scoreSidesSwapped ? [1, 0] : [0, 1];
+  const controls = (team, side) => {
+    const minus = `<button class="score-button" type="button" data-score-action="minus" data-team="${team}" ${canUndoTeam(team) ? "" : "disabled"}>− 1</button>`;
+    const plus = `<button class="score-button plus" type="button" data-score-action="plus" data-team="${team}" ${set.ended || liberoBlock !== undefined ? "disabled" : ""}>+ 1</button>`;
+    return `<div class="team-controls" data-team="${team}">${side === 0 ? minus + plus : plus + minus}</div>`;
+  };
   const liberoBlock = [0, 1].find(teamIndex => liberoNeedsImmediateExit(teamIndex, set));
   const scoreStatus = liberoBlock !== undefined
     ? `请先完成 ${escapeHTML(state.teams[liberoBlock].name)} 的自由人离场`
@@ -420,41 +426,35 @@ export function scoreboardHTML(set) {
   return `
     <section class="scoreboard">
       <div class="scoreboard-top">
-        ${teamScoreHTML(0, set)}
-        <div class="set-center"><small>CURRENT SET</small><strong>${set.number}</strong><span>目标 ${setTarget(set.number, state.match.maxSets, state.selectedRule)} 分 · 领先 2 分</span></div>
-        ${teamScoreHTML(1, set)}
+        ${teamScoreHTML(teamOrder[0], set, 0)}
+        <div class="set-center"><small>CURRENT SET</small><strong>${set.number}</strong><span>目标 ${setTarget(set.number, state.match.maxSets, state.selectedRule)} 分 · 领先 2 分</span><button class="score-swap-button" type="button" data-score-action="swap-sides" aria-label="交换双方比分显示位置" aria-pressed="${state.scoreSidesSwapped}" title="交换左右显示位置，比赛数据仍归属原队伍">⇄ 换边</button></div>
+        ${teamScoreHTML(teamOrder[1], set, 1)}
       </div>
-      ${setHistoryHTML()}
+      ${setHistoryHTML(false, teamOrder)}
       <div class="score-controls">
-        <div class="team-controls">
-          <button class="score-button" type="button" data-score-action="minus" data-team="0" ${canUndoTeam(0) ? "" : "disabled"}>− 1</button>
-          <button class="score-button plus" type="button" data-score-action="plus" data-team="0" ${set.ended || liberoBlock !== undefined ? "disabled" : ""}>+ 1</button>
-        </div>
+        ${controls(teamOrder[0], 0)}
         <div class="score-status ${liberoBlock !== undefined ? "attention" : ""}">${scoreStatus}</div>
-        <div class="team-controls">
-          <button class="score-button plus" type="button" data-score-action="plus" data-team="1" ${set.ended || liberoBlock !== undefined ? "disabled" : ""}>+ 1</button>
-          <button class="score-button" type="button" data-score-action="minus" data-team="1" ${canUndoTeam(1) ? "" : "disabled"}>− 1</button>
-        </div>
+        ${controls(teamOrder[1], 1)}
       </div>
     </section>`;
 }
 
-export function teamScoreHTML(teamIndex, set) {
+export function teamScoreHTML(teamIndex, set, side = teamIndex) {
   const server = set.servingTeam === teamIndex && !set.ended;
-  const scoreFirst = teamIndex === 1;
+  const scoreFirst = side === 1;
   const onCourtPlayers = set.onCourt[teamIndex].map(number => state.teams[teamIndex].roster.find(player => player.number === String(number))).filter(Boolean);
   // 混合比赛在记分板上实时给出场上男女人数，便于核对阵容是否符合组别要求。
   const genderChip = isMixedGender() ? `<span class="gender-chip">场上 ${genderCountText(onCourtPlayers)}</span>` : "";
-  const info = `<div class="team-score-info"><small>TEAM ${teamIndex === 0 ? "A" : "B"}</small><h2>${escapeHTML(state.teams[teamIndex].name)}</h2><span class="sets-won">已胜 ${state.match.setsWon[teamIndex]} / ${state.match.setsToWin} 局</span>${genderChip}${server ? `<span class="server-dot">${escapeHTML(servicePlayer(set.onCourt[teamIndex], set.rotationIndex[teamIndex]))} 号发球</span>` : ""}</div>`;
+  const info = `<div class="team-score-info"><small>${teamIndex === 0 ? "主队 · TEAM A" : "客队 · TEAM B"}</small><h2>${escapeHTML(state.teams[teamIndex].name)}</h2><span class="sets-won">已胜 ${state.match.setsWon[teamIndex]} / ${state.match.setsToWin} 局</span>${genderChip}${server ? `<span class="server-dot">${escapeHTML(servicePlayer(set.onCourt[teamIndex], set.rotationIndex[teamIndex]))} 号发球</span>` : ""}</div>`;
   const score = `<strong class="big-score">${set.score[teamIndex]}</strong>`;
-  return `<div class="team-score">${scoreFirst ? score + info : info + score}</div>`;
+  return `<div class="team-score" data-team="${teamIndex}">${scoreFirst ? score + info : info + score}</div>`;
 }
 
-export function setHistoryHTML(compact = false) {
+export function setHistoryHTML(compact = false, teamOrder = [0, 1]) {
   const completed = state.match.sets.filter(item => item.ended);
   return `<div class="set-history ${compact ? "compact" : ""}">
     <span class="set-history-label">此前各局</span>
-    ${completed.length ? completed.map(item => `<span class="set-history-item winner-${item.winner === 0 ? "a" : "b"}"><b>第 ${item.number} 局</b>${item.score[0]} : ${item.score[1]}</span>`).join("") : `<span class="set-history-empty">${matchFormatLabel()} · 尚无已结束局</span>`}
+    ${completed.length ? completed.map(item => `<span class="set-history-item winner-${item.winner === 0 ? "a" : "b"}"><b>第 ${item.number} 局</b>${item.score[teamOrder[0]]} : ${item.score[teamOrder[1]]}</span>`).join("") : `<span class="set-history-empty">${matchFormatLabel()} · 尚无已结束局</span>`}
   </div>`;
 }
 
@@ -465,24 +465,25 @@ export function canUndoTeam(teamIndex) {
 }
 
 export function operationsHTML(set) {
+  const teamOrder = state.scoreSidesSwapped ? [1, 0] : [0, 1];
   const maxSubs = currentProfile().substitutionsPerSet;
   return `<aside class="operations">
     <section class="operation-card">
       <h3>暂停</h3><p>记录申请时比分，并启动 ${RULESETS[state.selectedRule].timeoutSeconds} 秒计时。</p>
       <div class="operation-row">
-        ${[0,1].map(team => `<button class="action-button" type="button" data-score-action="timeout" data-team="${team}" ${set.ended || set.timeouts[team].length >= RULESETS[state.selectedRule].timeoutsPerSet ? "disabled" : ""}>${escapeHTML(state.teams[team].name)}<strong>${set.timeouts[team].length} / 2</strong></button>`).join("")}
+        ${teamOrder.map(team => `<button class="action-button" type="button" data-score-action="timeout" data-team="${team}" ${set.ended || set.timeouts[team].length >= RULESETS[state.selectedRule].timeoutsPerSet ? "disabled" : ""}>${escapeHTML(state.teams[team].name)}<strong>${set.timeouts[team].length} / 2</strong></button>`).join("")}
       </div>
     </section>
     <section class="operation-card">
       <h3>换人</h3><p>${currentRule().unrestrictedSubstitutions ? "每局最多 6 人次；队员可替换任意位置，不限制原始配对。" : "校验场上球员、原始配对与本局换人次数。"}</p>
       <div class="operation-row">
-        ${[0,1].map(team => `<button class="action-button" type="button" data-score-action="substitution" data-team="${team}" ${set.ended || set.subCount[team] >= maxSubs ? "disabled" : ""}>${escapeHTML(state.teams[team].name)}<strong>${set.subCount[team]} / ${maxSubs}</strong></button>`).join("")}
+        ${teamOrder.map(team => `<button class="action-button" type="button" data-score-action="substitution" data-team="${team}" ${set.ended || set.subCount[team] >= maxSubs ? "disabled" : ""}>${escapeHTML(state.teams[team].name)}<strong>${set.subCount[team]} / ${maxSubs}</strong></button>`).join("")}
       </div>
     </section>
     ${currentRule().liberoMax ? `<section class="operation-card">
       <h3>自由人替换</h3><p>不计普通换人；自动校验后排位置和已完成回合。</p>
       <div class="operation-row">
-        ${[0,1].map(team => `<button class="action-button ${liberoNeedsImmediateExit(team, set) ? "needs-action" : ""}" type="button" data-score-action="libero" data-team="${team}" ${set.ended ? "disabled" : ""}>${escapeHTML(state.teams[team].name)}<strong>${escapeHTML(liberoStatusText(team, set))}</strong></button>`).join("")}
+        ${teamOrder.map(team => `<button class="action-button ${liberoNeedsImmediateExit(team, set) ? "needs-action" : ""}" type="button" data-score-action="libero" data-team="${team}" ${set.ended ? "disabled" : ""}>${escapeHTML(state.teams[team].name)}<strong>${escapeHTML(liberoStatusText(team, set))}</strong></button>`).join("")}
       </div>
     </section>` : `<section class="operation-card"><h3>气排球轮转</h3><p>五人顺时针轮转；每次得分均由下一名队员发球。决胜局领先队到 8 分交换场区。</p></section>`}
     <section class="operation-card sanction-card">
@@ -650,6 +651,12 @@ export function bindScoreActions() {
     const team = Number(button.dataset.team);
     if (action === "plus") awardPoint(team);
     if (action === "minus") undoPoint(team);
+    if (action === "swap-sides") {
+      state.scoreSidesSwapped = !state.scoreSidesSwapped;
+      renderScore();
+      saveState();
+      toast(`已换边：${state.teams[state.scoreSidesSwapped ? 1 : 0].name} 在左，${state.teams[state.scoreSidesSwapped ? 0 : 1].name} 在右。`);
+    }
     if (action === "timeout") requestTimeout(team);
     if (action === "substitution") openSubstitutionModal(team);
     if (action === "libero") openLiberoModal(team);

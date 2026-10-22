@@ -314,6 +314,7 @@ export function performSubstitution(teamIndex, out, incoming, shouldRender = tru
 }
 
 export function startMatch() {
+  state.scoreSidesSwapped = false;
   const maxSets = state.selectedRule === "air" ? 3 : Number(state.meta.matchFormat) === 3 ? 3 : 5;
   state.meta.matchFormat = String(maxSets);
   state.match = {

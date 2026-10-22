@@ -80,6 +80,7 @@ export function initialState() {
     },
     firstLineups: [Array(6).fill(""), Array(6).fill("")],
     firstServer: 0,
+    scoreSidesSwapped: false,
     match: null,
     viewSetIndex: 0
   };
@@ -100,6 +101,7 @@ export function normalizeState(saved) {
   const restored = { ...base, ...saved, meta: { ...base.meta, ...saved.meta }, officials: { ...base.officials, ...saved.officials } };
   restored.selectedRule = RULESETS[saved.selectedRule] ? saved.selectedRule : "modern";
   if (!["record", "setup", "score"].includes(restored.screen)) restored.screen = "record";
+  restored.scoreSidesSwapped = saved.scoreSidesSwapped === true;
   if (restored.selectedRule === "air") restored.competitionProfile = "air2026";
   else if (!["official", "test2026"].includes(restored.competitionProfile)) restored.competitionProfile = "official";
   // 旧存档的队员没有 gender 字段，这里补齐，混合比赛选人时才有值可用。
